@@ -74,10 +74,6 @@ public class Connection extends Thread {
                 //wei
                 // debugger
                 log.debug("Processing data...");
-                // send an Authenticate command if remote hostname is supplied
-                if(Settings.getRemoteHostname()!=null) {
-                    this.sendAuthenticate();
-                }
                 
 		while(!term && (data = inreader.readLine())!= null){
                     //wei
