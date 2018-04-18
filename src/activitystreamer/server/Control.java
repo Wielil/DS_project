@@ -34,7 +34,7 @@ public class Control extends Thread {
             connections = new ArrayList<Connection>();
             
             // wei
-            // connect to master servers if remote hostname is supplied
+            // connect to an existing servers if remote hostname is supplied
             this.initiateConnection();
             
             // start a listener
@@ -127,6 +127,11 @@ public class Control extends Thread {
 	public synchronized Connection outgoingConnection(Socket s) throws IOException{
             log.debug("outgoing connection: "+Settings.socketAddress(s));
             Connection c = new Connection(s);
+	
+	    // wei
+	    // sending authenticate while initiating a connection
+	    c.sendAuthenticate();
+	    
             connections.add(c);
             return c;
 		
