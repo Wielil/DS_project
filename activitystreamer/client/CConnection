@@ -1,0 +1,112 @@
+package activitystreamer;
+
+import java.io.BufferedReader;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.net.Socket;
+
+
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+//import org.json.simple.JSONObject;
+//import org.json.simple.parser.JSONParser;
+//import org.json.simple.parser.ParseException;
+
+import activitystreamer.client.ClientSkeleton;
+import activitystreamer.util.Settings;
+
+public class CConnection extends Thread{
+	    private static final Logger log = LogManager.getLogger();
+	    private Socket socket;
+		private String remoteHost = Settings.getRemoteHostname();
+	    private int remotePort = Settings.getRemotePort();
+	    private DataInputStream input;
+	    private DataOutputStream output;
+	    private BufferedReader inreader;
+	    private PrintWriter outwriter;
+	    private boolean term = false;
+	    private boolean open = false;
+        
+	    CConnection(){
+	    	
+	    }
+	    
+	    public CConnection(Socket socket) throws IOException{
+        this.socket=socket;
+        log.info("Connection established to server -> " + remoteHost + remotePort);
+        input  = new DataInputStream(socket.getInputStream());
+        output = new DataOutputStream(socket.getOutputStream());
+        inreader = new BufferedReader(new InputStreamReader(input));
+        outwriter = new PrintWriter(output, true);
+        open = true;
+        start();
+	    }
+	  
+       public void run(){
+	        try {
+	            String data;
+	            while(!term && (data = inreader.readLine()) != null) {
+	            	    ClientSkeleton.getInstance().process(this, data);                        
+	                }  
+	                log.debug("connection closed to " + Settings.socketAddress(socket));
+		            input.close();
+	        }
+	            catch (IOException e) {
+	            log.error("connection " + Settings.socketAddress((socket)) + " closed with exception: " + e);
+	        }
+	        open = false;
+	    }
+
+      public boolean writeMsg(String msg) {
+             if(open) {
+             outwriter.println(msg);
+             outwriter.flush();
+             return true;	
+         }
+             return false;
+       }	
+
+     public void disconnect(){
+	         if (open) {
+             log.info("closing connection to " + Settings.socketAddress(socket));
+             try {
+               term = true;
+               inreader.close();
+               output.close();
+               } catch (IOException e) {
+               // already closed?
+               log.error("received exception closing the connection " + Settings.socketAddress(socket) +": "+e);
+               }
+             }
+         }
+     public Socket getSocket() {
+	         return socket;
+     }
+
+     public boolean isOpen() {
+	         return open;
+     }
+
+    public boolean isTerm() {
+	        return term;
+     }
+
+    public void setSocket(Socket socket) {
+	        this.socket = socket;
+    }
+
+    public void setOpen(boolean open) {
+	        this.open = open;
+    }
+    
+    public void setTerm(boolean term) {
+	       this.term = term;
+    }
+
+
+
+}
