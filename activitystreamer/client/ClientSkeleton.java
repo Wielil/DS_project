@@ -1,42 +1,35 @@
 package activitystreamer.client;
 
-import java.io.BufferedReader;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.net.Socket;
 
+import java.io.IOException;
+import java.net.Socket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
-
+import activitystreamer.CConnection;
 import activitystreamer.util.Settings;
 import java.net.UnknownHostException;
 
 // wei
-import java.util.Scanner;
-import java.util.logging.Level;
+//import java.util.Scanner;
+//import java.util.logging.Level;
+
 
 public class ClientSkeleton extends Thread {
     private static final Logger log = LogManager.getLogger();
+    private Socket socket;
     private static ClientSkeleton clientSolution;
     private TextFrame textFrame;
-    
-    // wei
-    // create a socket to connect server
-    private Socket socket;
+     //yuri
+    private static CConnection clientThread ;
     private String remoteHost = Settings.getRemoteHostname();
     private int remotePort = Settings.getRemotePort();
-    private DataInputStream input;
-    private DataOutputStream output;
-    private BufferedReader inreader;
-    private PrintWriter outwriter;
-    private boolean term = false;
-    private boolean open = false;
+    private boolean loginFlag=false;
+   // private boolean term = false;
+    //private boolean open = false;
+    
+  
     	
     public static ClientSkeleton getInstance(){
         if(clientSolution==null){
@@ -46,170 +39,221 @@ public class ClientSkeleton extends Thread {
     }
 	
     public ClientSkeleton(){
-        // wei
-        // declare the socket to the server and relevant reader and writer.
-        try {
-            socket = new Socket(remoteHost, remotePort);
-            log.info("Connection established to server -> " + remoteHost + ":" + remotePort);
-            
-            input  = new DataInputStream(socket.getInputStream());
-            output = new DataOutputStream(socket.getOutputStream());
-            inreader = new BufferedReader(new InputStreamReader(input));
-            outwriter = new PrintWriter(output, true);
-            open = true;
-            
-            textFrame = new TextFrame();
-            start();
-            
-        } catch (UnknownHostException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } 
+        //Yuri 
+        	textFrame = new TextFrame();
+        	//Start a new thread
+        	newThread(remoteHost, remotePort);
+        	//According to the input content to determine which method to call
+        	if(Settings.getUsername() =="anonymous"&&Settings.getSecret()==null) {
+            	   sendLogin();
+        	 }
+        	else 
+        		 sendRegistration();
+        	 start(); 
 
     }
+    
+    public void newThread(String remoteHost, int remotePort) {
 		
-    @SuppressWarnings("unchecked")
-    public void sendActivityObject(JSONObject activityObj) {
-        // wei
-        // parse the activityObj to Json String
-        String sentJSONString = activityObj.toJSONString();
-        
-        writeMsg(sentJSONString);
-        log.info("Message: ", sentJSONString, " sent"); 
-        
+			try {
+				  socket = new Socket(remoteHost, remotePort);
+				  clientThread = new CConnection (socket);
+			} catch (UnknownHostException e) {
+	            e.printStackTrace();
+	        } catch (IOException e) {
+	            e.printStackTrace();
+	        }
     }
     
-    // wei
-    // a function that sends "login" command to server.
+    
+   
+    
+    // yuri
+    // a function to send "login" command to server.
     public void sendLogin() {
         // create an authenticate json obj
-        JSONObject loginJSON = new JSONObject();
-        loginJSON.put("command", "LOGIN");
-        if (Settings.getUsername() != null) {
-            loginJSON.put("username", Settings.getUsername());
-        }
-        if (Settings.getSecret() != null) {
-            loginJSON.put("secret", Settings.getSecret());
-        }
-        this.writeMsg(loginJSON.toJSONString());
-        log.info("LOGIN REQUEST SENT");
-    }
-    
-    // wei
-    /*
-     * returns true if the message was written, otherwise false
-     */
-    public boolean writeMsg(String msg) {
-        if(open) {
-            outwriter.println(msg);
-            outwriter.flush();
-            return true;	
-        }
-        return false;
-    }	
-	
-    // wei
-    // use it when client wants to logout.
-    public void disconnect(){
-	if (open) {
-            log.info("closing connection to " + Settings.socketAddress(socket));
-            try {
-                term = true;
-                inreader.close();
-                output.close();
-            } catch (IOException e) {
-                // already closed?
-                log.error("received exception closing the connection " + Settings.socketAddress(socket) +": "+e);
-            }
-        }
-    }
-	
-    // wei	
-    public void run(){
-        try {
-            // create a scanner to get clients input
-            // I assume that clients input JSONObj.
-            Scanner sc = new Scanner(System.in);
-            String data;
-            JSONParser parser = new JSONParser();
-            // send login command to server
-            this.sendLogin();
-            while(!term && (data = inreader.readLine()) != null) {
-                term = this.process(data);
-                // getting activity obj from scanner and send it to server.
-                try {
-                    JSONObject msgJSON = (JSONObject) parser.parse(sc.nextLine());
-                    if (((String) msgJSON.get("command")).equals("LOGOUT")) {
-                        sendActivityObject(msgJSON);
-                        disconnect();
-                    } else {
-                        // send whatever client types, let server handles it.
-                        sendActivityObject(msgJSON);
-                    }                                        
-                } catch (ParseException ex) {
-                    java.util.logging.Logger.getLogger(ClientSkeleton.class.getName()).log(Level.SEVERE, null, ex);
-                }
-            }
-            
-            log.debug("connection closed to " + Settings.socketAddress(socket));
-            input.close();
-            // Do I need to close the socket?
-            // socket.close();
-            
-        } catch (IOException e) {
-            log.error("connection " + Settings.socketAddress((socket)) + " closed with exception: " + e);
+        JSONObject Login = new JSONObject();
+        Login.put("command", "LOGIN");
+        if(Settings.getUsername() =="anonymous"&&Settings.getSecret()==null) {
+      	   Login.put("username", Settings.getUsername());
+         }
+        else{
+           	Login.put("username", Settings.getUsername());
+           	Login.put("secret", Settings.getSecret());
         }
         
-        open = false;
+        clientThread.writeMsg(Login.toJSONString());
+        log.info("LOGIN REQUEST SENT");
+        
+    }
+    //yuri
+    //a function to send "registration" command to server
+    public void sendRegistration() {
+    	     // create an authenticate json objecj
+    	      JSONObject Regist = new JSONObject ();
+    	      Regist.put("command","REGISTER");
+    	      if(Settings.getUsername()!=null&&Settings.getSecret()==null){
+    	           	Regist.put("username", Settings.getUsername());
+    	           	Settings.setSecret("123456");
+    	           	//log.info("Set initial secret to 123. ");
+    	           	Regist.put("secret", Settings.getSecret());
+    	        }
+    	      else {
+    	    	      Regist.put("username", Settings.getUsername());
+    	    	      Regist.put("secret", Settings.getSecret());
+    	      }
+    	      clientThread.writeMsg(Regist.toJSONString());
+    	      log.info("REGIST REQUEST SENT");
+    	      
     }
     
-    // wei
+    
+    @SuppressWarnings("unchecked")
+    public void sendActivityObject(JSONObject activityObj) {
+        // yuri
+        JSONObject clientMeg = new JSONObject();
+        clientMeg.put("command", "ACTIVITY_MESSAGE");
+        clientMeg.put("username", Settings.getUsername());
+        clientMeg.put("secret", Settings.getSecret());
+        clientMeg.put("activity", activityObj);
+       
+        clientThread.writeMsg(clientMeg.toJSONString());
+        log.info("CLIENT MESSAGE SENT"); 
+        
+    }
+    
+    public void disconnect(){
+   	 if (loginFlag) {
+   		 JSONObject disconnect =new JSONObject();
+   		 disconnect.put("command", "LOGOUT");
+   		 clientThread.writeMsg(disconnect.toJSONString());
+   	 }
+   	     clientThread.disconnect();
+       }
+    
+	
+  
+
+   
     /*
      * Processing incoming messages from the connection.
      * Return true if the connection should close.
      */
-    public synchronized boolean process(String msg) {
-        //wei
+    public synchronized boolean process(CConnection thread,String msg) {
+        //yuri
         JSONParser parser = new JSONParser();
         try {
-            // parese msg to JSONObject
-            JSONObject msgJSON = (JSONObject) parser.parse(msg);
+            //yuri
+        	    // parese msg to JSONObject
+            JSONObject JSONmsg = (JSONObject) parser.parse(msg);
+            textFrame.setOutputText(JSONmsg);
+            log.info("Received Message From Server:"+msg);
             // get command
-            String command = (String) msgJSON.get("command");
+            String command = (String) JSONmsg.get("command");
             switch(command)
-            {
-                case "LOGIN_SUCCESS":
-                    log.info((String) msgJSON.get("info"));
-                    return false;
-                    
+            {   //yuri
+                case "AUTHENTICATION_FAIL":
+                    log.info((String) JSONmsg.get("info"));
+                    loginFlag =false;
+                    return loginFlag;
+                    //return false;
+                //yuri    
                 case "LOGIN_FAIL":
-                    log.info((String) msgJSON.get("info"));
-                    return true;
+                    log.info((String) JSONmsg.get("info"));
+                    loginFlag=false;
+                    return loginFlag;
+                    //return true;
                     
                 case "ACTIVITY_BROADCAST":
-                    log.info((String) msgJSON.get("activity"));
+                    log.info((String) JSONmsg.get("activity"));
                     return false;
                     
-                case "REDIRECT":
-                    remoteHost = (String) msgJSON.get("hostname");
-                    remotePort = Integer.parseInt((String) msgJSON.get("port"));
+                case "REDIRET":
+                    remoteHost = (String) JSONmsg.get("hostname");
+                    remotePort = Integer.parseInt((String) JSONmsg.get("port"));
                     log.info("THIS SERVER HANDLE TOO MUCH LOAD, REDIRECT TO SERVER %s:%d",
                             remoteHost, remotePort);
                     // starts the protocol afresh.
                     clientSolution = new ClientSkeleton();
-                    ClientSkeleton newCon = ClientSkeleton.getInstance();
+                    ClientSkeleton newc = ClientSkeleton.getInstance();
                     return true;
+                //yuri
+                case "REGISTER_FAILED":
+					newThread(remoteHost, remotePort);
+					sendLogin();
+					thread.setTerm(true);//setup a new thread
+					break;
+				//yuri
+				case "REGISTER_SUCCESS":
+					sendLogin();
+					break;
+				//yuri
+				case "LOGIN_SUCCESS":
+					loginFlag = true;
+             
                 
                 // default would be the situation that receives INVALID_MESSAGE
                 default:
-                    log.info((String) msgJSON.get("info"));
+                    log.info((String) JSONmsg.get("info"));
                     return true;
                 }
         } catch (Exception e) {
             e.printStackTrace();
+            //yuri
+            log.error("Invalid Message:"+msg);
         }
             
         return true;
+    
+      }
     }
-}
+	
+    
+    
+    // wei
+    // use it when client wants to logout.
+   
+    
+    
+    // wei	
+	  
+//public void run(){
+	       // try {
+	            // create a scanner to get clients input
+	            // I assume that clients input JSONObj.
+	            //Scanner sc = new Scanner(System.in);
+	            //String data;
+	           // JSONParser parser = new JSONParser();
+	            // send login command to server
+	            //this.sendLogin();
+	            //while(!term && (data = inreader.readLine()) != null) {
+	                //term = this.process(data);
+	            	    //ClientSkeleton.getInstance().process(this, data);
+	                // getting activity obj from scanner and send it to server.
+	                //try {
+	                   // JSONObject JSONmsg = (JSONObject) parser.parse(sc.nextLine());
+	                    //if (((String) JSONmsg.get("command")).equals("LOGOUT")) {
+	                        //sendActivityObject(JSONmsg);
+	                        //disconnect();
+	                    //} else {
+	                        // send whatever client types, let server handles it.
+	                        //sendActivityObject(JSONmsg);
+	                    //}                                        
+	               // }  
+	               // log.debug("connection closed to " + Settings.socketAddress(socket));
+		           // input.close();
+	       // }
+	            //catch (ParseException ex) {
+	                    //java.util.logging.Logger.getLogger(ClientSke"leton.class.getName()).log(Level.SEVERE, null, ex);
+	               // }
+	           
+	            // Do I need to close the socket?
+	            // socket.close();
+	             //catch (IOException e) {
+	            //log.error("connection " + Settings.socketAddress((socket)) + " closed with exception: " + e);
+	       // }
+	        
+	       // open = false;
+	   /// }
+    
+//}
