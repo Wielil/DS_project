@@ -1,4 +1,4 @@
-//Hahahaha
+
 package activitystreamer;
 
 import org.apache.commons.cli.CommandLine;
