@@ -13,17 +13,23 @@ import activitystreamer.util.Settings;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+import java.net.InetAddress; // getting ip address to compute server id.
+import java.net.UnknownHostException;
 
 import java.util.HashMap;
+import java.util.logging.Level;
 
 public class Control extends Thread {
 	private static final Logger log = LogManager.getLogger();
 	private static ArrayList<Connection> connections;
 	private static boolean term = false;
 	private static Listener listener;
+        
 	private static boolean masterFlag; // Used to check if the server is a master server
-	private static HashMap<String, String> userInfo; // Global user info map <username, password>
-	private static HashMap<String, String> tempUserInfo; // Temporary map for user register request
+        // userInfo should be instansiated in order to get its size.
+	private static HashMap<String, String> userInfo = new HashMap<String, String>(); // Global user info map <username, password>
+	private static HashMap<String, String> tempUserInfo = new HashMap<String, String>(); // Temporary map for user register request
+        private static int serverId;
 
 	protected static Control control = null;
 
@@ -164,7 +170,7 @@ public class Control extends Thread {
 		// Shaoxi
 		// Check sub server authentication in order to start a listener
 		if (!masterFlag) {
-			System.out.println("Sub server IN");
+			log.info("Sub server IN");
 
 			try {
 				Thread.sleep(3000);
@@ -173,7 +179,8 @@ public class Control extends Thread {
 					log.info("Sub Server Shutdown");
 					System.exit(-1);
 				} else {
-					term = false;
+                                        // trem is false at the beginning.
+					// term = false;
 					try {
 						listener = new Listener();
 					} catch (IOException e1) {
@@ -190,6 +197,18 @@ public class Control extends Thread {
 		///////////////////////
 
 		log.info("using activity interval of " + Settings.getActivityInterval() + " milliseconds");
+                
+                // wei
+                // calculat the id using ip address and port num
+                // getting server ip
+                try {
+                    String ipAddress = InetAddress.getLocalHost().getHostAddress();
+                    serverId = ipToInt(ipAddress) + Settings.getLocalPort();
+                } catch (UnknownHostException ex) {
+                    java.util.logging.Logger.getLogger(Control.class.getName()).log(Level.SEVERE, null, ex);
+                }
+                // calculate server id using local ip address and local port.
+                
 
 		while (!term) {
 
@@ -202,7 +221,7 @@ public class Control extends Thread {
 			}
 			if (!term) {
 				log.debug("doing activity");
-				term = doActivity();
+				term = doActivity(serverId);
 			}
 
 		}
@@ -214,7 +233,12 @@ public class Control extends Thread {
 		listener.setTerm(true);
 	}
 
-	public boolean doActivity() {
+	public boolean doActivity(int id) {
+                try {
+                    sendServerAnnounce(id);
+                } catch (UnknownHostException ex) {
+                    java.util.logging.Logger.getLogger(Control.class.getName()).log(Level.SEVERE, null, ex);
+                }
 		return false;
 	}
 
@@ -259,5 +283,42 @@ public class Control extends Thread {
 		invalidMsg.put("info", "invalid command");
 		con.writeMsg(invalidMsg.toJSONString());
 		log.info("INVALID_MESSAGE SENT");
+	}
+        
+        // a function that sends server_announce to every server to every other
+        // server.
+        @SuppressWarnings("unchecked")
+        public void sendServerAnnounce(int id) throws UnknownHostException {
+                JSONObject serverAnnounce = new JSONObject();
+                
+                serverAnnounce.put("command", "SERVER_ANNOUNCE");
+                serverAnnounce.put("id", serverId);
+                // load is the number of clients connecting to this server
+                serverAnnounce.put("load", userInfo.size());
+                serverAnnounce.put("hostname", Settings.getLocalHostname());
+                serverAnnounce.put("port", Settings.getLocalPort());
+                
+                // include the information of client to ensure the process
+                // of login, however, it is not mentioned in the spec.
+                serverAnnounce.put("userInfo", userInfo);
+        }
+        // a function that converts an ipAddress to a Long number.
+        // reference from github.com/Albaniusz/java_mkyong/blob/master/src/main/java/com/mkyong/core/JavaBitwiseExample.java
+        public int ipToInt(String ipAddress) {
+		// ipAddressInArray[0] = 192
+		String[] ipAddressInArray = ipAddress.split("\\.");
+
+		int result = 0;
+		for (int i = 0; i < ipAddressInArray.length; i++) {
+			int power = 3 - i;
+			int ip = Integer.parseInt(ipAddressInArray[i]);
+
+			// 1. 192 * 256^3
+			// 2. 168 * 256^2
+			// 3. 1 * 256^1
+			// 4. 2 * 256^0
+			result += ip * Math.pow(256, power);
+		}
+		return result;
 	}
 }
