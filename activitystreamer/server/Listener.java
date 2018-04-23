@@ -41,8 +41,4 @@ public class Listener extends Thread{
 		if(term) interrupt();
 	}
 	
-	public ServerSocket getServerSocket() {
-		return serverSocket;
-	}
-	
 }
