@@ -30,7 +30,7 @@ public class Control extends Thread {
 	private static HashMap<String, String> userInfo = new HashMap<String, String>(); // Global user info map <username,
 																						// password>
 	private static HashMap<String, String> tempUserInfo = new HashMap<String, String>(); // Temporary map for user
-																							// register request
+        																						// register request
 	private static int serverId;
 
 	protected static Control control = null;
@@ -115,8 +115,9 @@ public class Control extends Thread {
 			case "AUTHENTICATION_FAIL":
 				log.info((String) JSONmsg.get("info"));
 				log.info("Close connection to the master server");
-
 				return true;
+                        case "SERVER_ANNOUNCE":
+                                return processSerAnn(con, JSONmsg);
 			case "REGISTER":
 				return processReg(con, JSONmsg);
 			case "LOCK_REQUEST":
@@ -553,4 +554,21 @@ public class Control extends Thread {
 		sendLockDenied(con, userLock, secretLock);
 		return false;
 	}
+        
+        // Wei
+        // Process incoming SERVER_ANNOUNCE
+        // return: disconnect (true) / keep connection (false)
+        private boolean processSerAnn(Connection con, JSONObject msg) {
+                // test if the announcement format is correct, if not,
+                // disconnect the connection
+                if (msg.get("id") == null ||
+                        msg.get("load") == null ||
+                        msg.get("hostname") == null ||
+                        msg.get("port") == null) {
+                    return true;
+                }
+                // test if the server is already been authenticated
+                // if yes, return false. if not, return true.
+                return !con.isServer();
+        }
 }
