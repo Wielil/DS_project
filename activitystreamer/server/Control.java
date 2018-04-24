@@ -302,13 +302,19 @@ public class Control extends Thread {
 		serverAnnounce.put("command", "SERVER_ANNOUNCE");
 		serverAnnounce.put("id", serverId);
 		// load is the number of clients connecting to this server
-		serverAnnounce.put("load", userInfo.size());
+                int load = 0;
+                for (Connection con : connections) {
+                    if (con.isClient()) {
+                        load++;
+                    }
+                }
+		serverAnnounce.put("load", load);
 		serverAnnounce.put("hostname", Settings.getLocalHostname());
 		serverAnnounce.put("port", Settings.getLocalPort());
 
-		// include the information of client to ensure the process
-		// of login, however, it is not mentioned in the spec.
-		serverAnnounce.put("userInfo", userInfo);
+//		// include the information of client to ensure the process
+//		// of login, however, it is not mentioned in the spec.
+//		serverAnnounce.put("userInfo", userInfo);
 
 		// send serverAnnounce to every server in the system
 		for (Connection con : connections) {
