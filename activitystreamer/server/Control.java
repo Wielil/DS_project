@@ -24,12 +24,14 @@ public class Control extends Thread {
 	private static ArrayList<Connection> connections;
 	private static boolean term = false;
 	private static Listener listener;
-        
+
 	private static boolean masterFlag; // Used to check if the server is a master server
-        // userInfo should be instansiated in order to get its size.
-	private static HashMap<String, String> userInfo = new HashMap<String, String>(); // Global user info map <username, password>
-	private static HashMap<String, String> tempUserInfo = new HashMap<String, String>(); // Temporary map for user register request
-        private static int serverId;
+	// userInfo should be instansiated in order to get its size.
+	private static HashMap<String, String> userInfo = new HashMap<String, String>(); // Global user info map <username,
+																						// password>
+	private static HashMap<String, String> tempUserInfo = new HashMap<String, String>(); // Temporary map for user
+																							// register request
+	private static int serverId;
 
 	protected static Control control = null;
 
@@ -106,6 +108,7 @@ public class Control extends Thread {
 					sendAuthFail(con, secret);
 					return true;
 				} else {
+					con.setServer();
 					return false;
 				}
 
@@ -114,7 +117,12 @@ public class Control extends Thread {
 				log.info("Close connection to the master server");
 
 				return true;
-			
+			case "REGISTER":
+				//return processReg(con, JSONmsg);
+			case "LOCK_REQUEST":
+				return processLockReq(con, JSONmsg);
+			case "LOCK_DENIED":
+				//return processLockDenied(con, JSONmsg);
 			case "INVALID_MESSAGE":
 				log.info((String) JSONmsg.get("info"));
 			default:
@@ -144,7 +152,6 @@ public class Control extends Thread {
 	 */
 	public synchronized Connection incomingConnection(Socket s) throws IOException {
 		log.debug("incomming connection: " + Settings.socketAddress(s));
-
 		Connection c = new Connection(s);
 		connections.add(c);
 		return c;
@@ -158,6 +165,7 @@ public class Control extends Thread {
 	public synchronized Connection outgoingConnection(Socket s) throws IOException {
 		log.debug("outgoing connection: " + Settings.socketAddress(s));
 		Connection c = new Connection(s);
+		c.setServer(); // all outgoing connections are server connections
 		connections.add(c);
 		// wei
 		// sending authenticate to authenticate the server
@@ -179,7 +187,7 @@ public class Control extends Thread {
 					log.info("Sub Server Shutdown");
 					System.exit(-1);
 				} else {
-                                        // trem is false at the beginning.
+					// trem is false at the beginning.
 					// term = false;
 					try {
 						listener = new Listener();
@@ -189,7 +197,6 @@ public class Control extends Thread {
 					}
 				}
 			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}
@@ -197,18 +204,17 @@ public class Control extends Thread {
 		///////////////////////
 
 		log.info("using activity interval of " + Settings.getActivityInterval() + " milliseconds");
-                
-                // wei
-                // calculat the id using ip address and port num
-                // getting server ip
-                try {
-                    String ipAddress = InetAddress.getLocalHost().getHostAddress();
-                    serverId = ipToInt(ipAddress) + Settings.getLocalPort();
-                } catch (UnknownHostException ex) {
-                    java.util.logging.Logger.getLogger(Control.class.getName()).log(Level.SEVERE, null, ex);
-                }
-                // calculate server id using local ip address and local port.
-                
+
+		// wei
+		// calculat the id using ip address and port num
+		// getting server ip
+		try {
+			String ipAddress = InetAddress.getLocalHost().getHostAddress();
+			serverId = ipToInt(ipAddress) + Settings.getLocalPort();
+		} catch (UnknownHostException ex) {
+			java.util.logging.Logger.getLogger(Control.class.getName()).log(Level.SEVERE, null, ex);
+		}
+		// calculate server id using local ip address and local port.
 
 		while (!term) {
 
@@ -234,11 +240,11 @@ public class Control extends Thread {
 	}
 
 	public boolean doActivity(int id) {
-                try {
-                    sendServerAnnounce(id, getConnections());
-                } catch (UnknownHostException ex) {
-                    java.util.logging.Logger.getLogger(Control.class.getName()).log(Level.SEVERE, null, ex);
-                }
+		try {
+			sendServerAnnounce(id, getConnections());
+		} catch (UnknownHostException ex) {
+			java.util.logging.Logger.getLogger(Control.class.getName()).log(Level.SEVERE, null, ex);
+		}
 		return false;
 	}
 
@@ -284,34 +290,35 @@ public class Control extends Thread {
 		con.writeMsg(invalidMsg.toJSONString());
 		log.info("INVALID_MESSAGE SENT");
 	}
-        
-        // a function that sends server_announce to every server to every other
-        // server.
-        @SuppressWarnings("unchecked")
-        public void sendServerAnnounce(int id, ArrayList<Connection> connections) throws UnknownHostException {
-                JSONObject serverAnnounce = new JSONObject();
-                
-                serverAnnounce.put("command", "SERVER_ANNOUNCE");
-                serverAnnounce.put("id", serverId);
-                // load is the number of clients connecting to this server
-                serverAnnounce.put("load", userInfo.size());
-                serverAnnounce.put("hostname", Settings.getLocalHostname());
-                serverAnnounce.put("port", Settings.getLocalPort());
-                
-                // include the information of client to ensure the process
-                // of login, however, it is not mentioned in the spec.
-                serverAnnounce.put("userInfo", userInfo);
-                
-                // send serverAnnounce to every server in the system
-                for (Connection con : connections) {
-                    con.writeMsg(serverAnnounce.toJSONString());
-                }
-                
-                
-        }
-        // a function that converts an ipAddress to a Long number.
-        // reference from github.com/Albaniusz/java_mkyong/blob/master/src/main/java/com/mkyong/core/JavaBitwiseExample.java
-        public int ipToInt(String ipAddress) {
+
+	// a function that sends server_announce to every server to every other
+	// server.
+	@SuppressWarnings("unchecked")
+	public void sendServerAnnounce(int id, ArrayList<Connection> connections) throws UnknownHostException {
+		JSONObject serverAnnounce = new JSONObject();
+
+		serverAnnounce.put("command", "SERVER_ANNOUNCE");
+		serverAnnounce.put("id", serverId);
+		// load is the number of clients connecting to this server
+		serverAnnounce.put("load", userInfo.size());
+		serverAnnounce.put("hostname", Settings.getLocalHostname());
+		serverAnnounce.put("port", Settings.getLocalPort());
+
+		// include the information of client to ensure the process
+		// of login, however, it is not mentioned in the spec.
+		serverAnnounce.put("userInfo", userInfo);
+
+		// send serverAnnounce to every server in the system
+		for (Connection con : connections) {
+			con.writeMsg(serverAnnounce.toJSONString());
+		}
+
+	}
+
+	// a function that converts an ipAddress to a Long number.
+	// reference from
+	// github.com/Albaniusz/java_mkyong/blob/master/src/main/java/com/mkyong/core/JavaBitwiseExample.java
+	public int ipToInt(String ipAddress) {
 		// ipAddressInArray[0] = 192
 		String[] ipAddressInArray = ipAddress.split("\\.");
 
@@ -327,5 +334,90 @@ public class Control extends Thread {
 			result += ip * Math.pow(256, power);
 		}
 		return result;
+	}
+
+	// Shaoxi
+	// Check if an user name has been selected
+	private boolean isUserOnRecord(String user) {
+		for (String key : userInfo.keySet()) {
+			if (key.equals(user)) {
+				return true;
+			}
+		}
+		for (String key : tempUserInfo.keySet()) {
+			if (key.equals(user)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// Shaoxi
+	// Process incoming REGISTER
+	private boolean processReg(Connection con, JSONObject msg) {
+		JSONObject invMsg = new JSONObject();
+		if (con.isClient()) {
+			invMsg.put("command", "INVALID_MESSAGE");
+			invMsg.put("info", "Client has already logged in. No registeration allowed.");
+			con.writeMsg(invMsg.toJSONString());
+			return true;
+		}
+		String userReg = (String) msg.get("username");
+		String secretReg = (String) msg.get("secret");
+		if (userReg == null || secretReg == null) {
+			invMsg.put("command", "INVALID_MESSAGE");
+			invMsg.put("info", "username or secret is null");
+			con.writeMsg(invMsg.toJSONString());
+			return true;
+		}
+
+		// TO-DO
+		// Main logic
+		// 1. Check local userInfo / tempUserInfo
+		// 2. Sent LOCK_REQUEST
+		// 3. Receive LOCK_ALLOWED / LOCK_DENIED
+		return false;
+	}
+
+	// Shaoxi
+	// Send LOCK_DENIED to all other connected servers
+	@SuppressWarnings("unchecked")
+	private void sendLockDenied(String user, String secret) {
+		JSONObject lockDenied = new JSONObject();
+		lockDenied.put("command", "LOCK_DENIED");
+		lockDenied.put("username", user);
+		lockDenied.put("secret", secret);
+		//con.writeMsg(lockDenied.toJSONString());
+		for (Connection c : connections) {
+			if (c.isServer()) {
+				c.writeMsg(lockDenied.toJSONString());
+				log.info("LOCK_DENIED SENT -> " + c.getFullAddr());
+			}
+		}
+	}
+
+	// Shaoxi
+	// Process incoming LOCK_REQUEST
+	// return: disconnect (true) / keep connection (false)
+	@SuppressWarnings("unchecked")
+	private boolean processLockReq(Connection con, JSONObject msg) {
+		// Check valid server connection
+		if (!con.isServer()) {
+			return true;
+		}
+		String userLock = (String) msg.get("username");
+		String secretLock = (String) msg.get("secret");
+		if (userLock == null || secretLock == null) {
+			JSONObject invMsg = new JSONObject();
+			invMsg.put("command", "INVALID_MESSAGE");
+			invMsg.put("info", "username or secret is null");
+			con.writeMsg(invMsg.toJSONString());
+			return false;
+		}
+		if (isUserOnRecord(userLock)) {
+			sendLockDenied(userLock, secretLock);
+			return false;
+		}
+		return false;
 	}
 }
