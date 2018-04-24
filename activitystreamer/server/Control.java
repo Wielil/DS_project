@@ -235,7 +235,7 @@ public class Control extends Thread {
 
 	public boolean doActivity(int id) {
                 try {
-                    sendServerAnnounce(id);
+                    sendServerAnnounce(id, getConnections());
                 } catch (UnknownHostException ex) {
                     java.util.logging.Logger.getLogger(Control.class.getName()).log(Level.SEVERE, null, ex);
                 }
@@ -288,7 +288,7 @@ public class Control extends Thread {
         // a function that sends server_announce to every server to every other
         // server.
         @SuppressWarnings("unchecked")
-        public void sendServerAnnounce(int id) throws UnknownHostException {
+        public void sendServerAnnounce(int id, ArrayList<Connection> connections) throws UnknownHostException {
                 JSONObject serverAnnounce = new JSONObject();
                 
                 serverAnnounce.put("command", "SERVER_ANNOUNCE");
@@ -301,6 +301,13 @@ public class Control extends Thread {
                 // include the information of client to ensure the process
                 // of login, however, it is not mentioned in the spec.
                 serverAnnounce.put("userInfo", userInfo);
+                
+                // send serverAnnounce to every server in the system
+                for (Connection con : connections) {
+                    con.writeMsg(serverAnnounce.toJSONString());
+                }
+                
+                
         }
         // a function that converts an ipAddress to a Long number.
         // reference from github.com/Albaniusz/java_mkyong/blob/master/src/main/java/com/mkyong/core/JavaBitwiseExample.java
