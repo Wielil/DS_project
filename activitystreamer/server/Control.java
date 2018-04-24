@@ -26,7 +26,7 @@ public class Control extends Thread {
 	private static Listener listener;
 
 	private static boolean masterFlag; // Used to check if the server is a master server
-	// userInfo should be instansiated in order to get its size.
+	// userInfo should be initiated in order to get its size.
 	private static HashMap<String, String> userInfo = new HashMap<String, String>(); // Global user info map <username,
 																						// password>
 	private static HashMap<String, String> tempUserInfo = new HashMap<String, String>(); // Temporary map for user
@@ -118,18 +118,20 @@ public class Control extends Thread {
 
 				return true;
 			case "REGISTER":
-				//return processReg(con, JSONmsg);
+				return processReg(con, JSONmsg);
 			case "LOCK_REQUEST":
 				return processLockReq(con, JSONmsg);
 			case "LOCK_DENIED":
-				//return processLockDenied(con, JSONmsg);
+				return processLockDenied(con, JSONmsg);
+			case "LOCK_ALLOWED":
+				return processLockAllowed(con, JSONmsg);
 			case "INVALID_MESSAGE":
 				log.info((String) JSONmsg.get("info"));
 			default:
 				log.info("DEFAULT:" + (String) JSONmsg.get("info"));
 				// log.info("close the server");
 				// listener.getServerSocket().close();
-				// return true;
+				return true;
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -354,20 +356,21 @@ public class Control extends Thread {
 
 	// Shaoxi
 	// Process incoming REGISTER
+	@SuppressWarnings("unchecked")
 	private boolean processReg(Connection con, JSONObject msg) {
-		JSONObject invMsg = new JSONObject();
+		JSONObject resMsg = new JSONObject();
 		if (con.isClient()) {
-			invMsg.put("command", "INVALID_MESSAGE");
-			invMsg.put("info", "Client has already logged in. No registeration allowed.");
-			con.writeMsg(invMsg.toJSONString());
+			resMsg.put("command", "INVALID_MESSAGE");
+			resMsg.put("info", "Client has already logged in. No registeration allowed.");
+			con.writeMsg(resMsg.toJSONString());
 			return true;
 		}
 		String userReg = (String) msg.get("username");
 		String secretReg = (String) msg.get("secret");
 		if (userReg == null || secretReg == null) {
-			invMsg.put("command", "INVALID_MESSAGE");
-			invMsg.put("info", "username or secret is null");
-			con.writeMsg(invMsg.toJSONString());
+			resMsg.put("command", "INVALID_MESSAGE");
+			resMsg.put("info", "username or secret is null");
+			con.writeMsg(resMsg.toJSONString());
 			return true;
 		}
 
@@ -376,22 +379,97 @@ public class Control extends Thread {
 		// 1. Check local userInfo / tempUserInfo
 		// 2. Sent LOCK_REQUEST
 		// 3. Receive LOCK_ALLOWED / LOCK_DENIED
+		if (isUserOnRecord(userReg)) {
+			sendRegFailed(con, userReg);
+			return true;
+		} else {
+			tempUserInfo.put(userReg, secretReg);
+			sendLockReq(con, userReg, secretReg);
+			try {
+				Thread.sleep(500); // wait for LOCK feedback
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+			if (isUserOnRecord(userReg)) { // check if the userInfo has been updated
+				userInfo.put(userReg, secretReg);
+				tempUserInfo.remove(userReg);
+				sendRegSuccess(con, userReg);
+			} else {
+				sendRegFailed(con, userReg);
+				return true;
+			}
+		}
 		return false;
+	}
+
+	@SuppressWarnings("unchecked")
+	private void sendRegSuccess(Connection con, String user) {
+		JSONObject resMsg = new JSONObject();
+		resMsg.put("command", "REGISTER_SUCCESS");
+		resMsg.put("info", "register success for " + user);
+		con.writeMsg(resMsg.toJSONString());
+	}
+
+	@SuppressWarnings("unchecked")
+	private void sendRegFailed(Connection con, String user) {
+		JSONObject resMsg = new JSONObject();
+		resMsg.put("command", "REGISTER_FAILED");
+		resMsg.put("info", user + " is already registered with the system");
+		con.writeMsg(resMsg.toJSONString());
+	}
+
+	@SuppressWarnings("unchecked")
+	private void sendLockReq(Connection con, String user, String secret) {
+		JSONObject lockRequest = new JSONObject();
+		lockRequest.put("command", "LOCK_REQUEST");
+		lockRequest.put("username", user);
+		lockRequest.put("secret", secret);
+
+		for (Connection c : connections) {
+			if (c.equals(con)) { // skip sending to the request server
+				continue;
+			}
+			if (c.isServer()) {
+				c.writeMsg(lockRequest.toJSONString());
+				log.info("LOCK_REQUEST SENT -> " + c.getFullAddr());
+			}
+		}
 	}
 
 	// Shaoxi
 	// Send LOCK_DENIED to all other connected servers
 	@SuppressWarnings("unchecked")
-	private void sendLockDenied(String user, String secret) {
+	private void sendLockDenied(Connection con, String user, String secret) {
 		JSONObject lockDenied = new JSONObject();
 		lockDenied.put("command", "LOCK_DENIED");
 		lockDenied.put("username", user);
 		lockDenied.put("secret", secret);
-		//con.writeMsg(lockDenied.toJSONString());
+		// con.writeMsg(lockDenied.toJSONString());
 		for (Connection c : connections) {
+			if (c.equals(con)) { // skip sending to the request server
+				continue;
+			}
 			if (c.isServer()) {
 				c.writeMsg(lockDenied.toJSONString());
 				log.info("LOCK_DENIED SENT -> " + c.getFullAddr());
+			}
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	private void sendLockAllowed(Connection con, String user, String secret) {
+		JSONObject lockAllowed = new JSONObject();
+		lockAllowed.put("command", "LOCK_ALLOWED");
+		lockAllowed.put("username", user);
+		lockAllowed.put("secret", secret);
+		// con.writeMsg(lockDenied.toJSONString());
+		for (Connection c : connections) {
+			if (c.equals(con)) { // skip sending to the request server
+				continue;
+			}
+			if (c.isServer()) {
+				c.writeMsg(lockAllowed.toJSONString());
+				log.info("LOCK_ALLOWED SENT -> " + c.getFullAddr());
 			}
 		}
 	}
@@ -415,9 +493,58 @@ public class Control extends Thread {
 			return false;
 		}
 		if (isUserOnRecord(userLock)) {
-			sendLockDenied(userLock, secretLock);
+			sendLockDenied(con, userLock, secretLock);
 			return false;
 		}
+		sendLockReq(con, userLock, secretLock);
+		return false;
+	}
+
+	// Shaoxi
+	// Process incoming LOCK_ALLOWED
+	// return: disconnect (true) / keep connection (false)
+	@SuppressWarnings("unchecked")
+	private boolean processLockAllowed(Connection con, JSONObject msg) {
+		// Check valid server connection
+		if (!con.isServer()) {
+			return true;
+		}
+		String userLock = (String) msg.get("username");
+		String secretLock = (String) msg.get("secret");
+		if (userLock == null || secretLock == null) {
+			JSONObject invMsg = new JSONObject();
+			invMsg.put("command", "INVALID_MESSAGE");
+			invMsg.put("info", "username or secret is null");
+			con.writeMsg(invMsg.toJSONString());
+			return false;
+		}
+		userInfo.put(userLock, secretLock);
+		tempUserInfo.remove(userLock);
+		sendLockAllowed(con, userLock, secretLock);
+		return false;
+	}
+
+	// Shaoxi
+	// Process incoming LOCK_DENIED
+	// return: disconnect (true) / keep connection (false)
+	@SuppressWarnings("unchecked")
+	private boolean processLockDenied(Connection con, JSONObject msg) {
+		// Check valid server connection
+		if (!con.isServer()) {
+			return true;
+		}
+		String userLock = (String) msg.get("username");
+		String secretLock = (String) msg.get("secret");
+		if (userLock == null || secretLock == null) {
+			JSONObject invMsg = new JSONObject();
+			invMsg.put("command", "INVALID_MESSAGE");
+			invMsg.put("info", "username or secret is null");
+			con.writeMsg(invMsg.toJSONString());
+			return false;
+		}
+		userInfo.remove(userLock);
+		tempUserInfo.remove(userLock);
+		sendLockDenied(con, userLock, secretLock);
 		return false;
 	}
 }
