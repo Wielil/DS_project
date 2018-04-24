@@ -27,6 +27,8 @@ public class Connection extends Thread {
 	private boolean open = false;
 	private Socket socket;
 	private boolean term = false;
+	private boolean serverFlag = false; // Indicate a connection is a valid server (default: false)
+	private boolean clientFlag = false; // Indicate a connection is a valid client (default: false)
 
 	Connection(Socket socket) throws IOException {
 		in = new DataInputStream(socket.getInputStream());
@@ -114,4 +116,31 @@ public class Connection extends Thread {
 		return term;
 	}
 
+	// Shaoxi
+	// Used to set the connection as a server in Control.java
+	void setServer() {
+		serverFlag = true;
+	}
+
+	// return if it is a valid server
+	boolean isServer() {
+		return serverFlag;
+	}
+
+	// Shaoxi
+	// Used to set the connection as a client in Control.java
+	void setClient() {
+		clientFlag = true;
+	}
+
+	// return if it is a valid client
+	boolean isClient() {
+		return clientFlag;
+	}
+
+	// Get the full address of the connection
+	// return: "hostname:port"
+	public String getFullAddr() {
+		return getSocket().getInetAddress() + ":" + getSocket().getPort();
+	}
 }
