@@ -26,7 +26,7 @@ public class Control extends Thread {
 	private static Listener listener;
 
 	private static boolean masterFlag; // Used to check if the server is a master server
-	// userInfo should be initiated in order to get its size.
+	
 	private static HashMap<String, String> userInfo = new HashMap<String, String>(); // Global user info map <username,
 																						// password>
 	private static HashMap<String, Integer> lockInfo = new HashMap<String, Integer>();
@@ -60,7 +60,8 @@ public class Control extends Thread {
 		}
 		start();
 	}
-
+	
+	// 
 	public boolean initiateConnection() {
 		// make a connection to another server if remote hostname is supplied
 		if (Settings.getRemoteHostname() != null) {
@@ -323,7 +324,9 @@ public class Control extends Thread {
 
 		// send serverAnnounce to every server in the system
 		for (Connection con : connections) {
-			con.writeMsg(serverAnnounce.toJSONString());
+			if (con.isServer()) {
+				con.writeMsg(serverAnnounce.toJSONString());
+			}
 		}
 
 	}
