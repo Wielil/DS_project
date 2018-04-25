@@ -29,8 +29,8 @@ public class Control extends Thread {
 	// userInfo should be initiated in order to get its size.
 	private static HashMap<String, String> userInfo = new HashMap<String, String>(); // Global user info map <username,
 																						// password>
-	private static HashMap<String, String> tempUserInfo = new HashMap<String, String>(); // Temporary map for user
-        																						// register request
+	private static HashMap<String, Integer> lockInfo = new HashMap<String, Integer>();
+
 	private static int serverId;
 
 	protected static Control control = null;
@@ -116,8 +116,8 @@ public class Control extends Thread {
 				log.info((String) JSONmsg.get("info"));
 				log.info("Close connection to the master server");
 				return true;
-                        case "SERVER_ANNOUNCE":
-                                return processSerAnn(con, JSONmsg);
+			case "SERVER_ANNOUNCE":
+				return processSerAnn(con, JSONmsg);
 			case "REGISTER":
 				return processReg(con, JSONmsg);
 			case "LOCK_REQUEST":
@@ -303,19 +303,19 @@ public class Control extends Thread {
 		serverAnnounce.put("command", "SERVER_ANNOUNCE");
 		serverAnnounce.put("id", serverId);
 		// load is the number of clients connecting to this server
-                int load = 0;
-                for (Connection con : connections) {
-                    if (con.isClient()) {
-                        load++;
-                    }
-                }
+		int load = 0;
+		for (Connection con : connections) {
+			if (con.isClient()) {
+				load++;
+			}
+		}
 		serverAnnounce.put("load", load);
 		serverAnnounce.put("hostname", Settings.getLocalHostname());
 		serverAnnounce.put("port", Settings.getLocalPort());
 
-//		// include the information of client to ensure the process
-//		// of login, however, it is not mentioned in the spec.
-//		serverAnnounce.put("userInfo", userInfo);
+		// // include the information of client to ensure the process
+		// // of login, however, it is not mentioned in the spec.
+		// serverAnnounce.put("userInfo", userInfo);
 
 		// send serverAnnounce to every server in the system
 		for (Connection con : connections) {
@@ -353,7 +353,7 @@ public class Control extends Thread {
 				return true;
 			}
 		}
-		for (String key : tempUserInfo.keySet()) {
+		for (String key : lockInfo.keySet()) {
 			if (key.equals(user)) {
 				return true;
 			}
@@ -381,32 +381,29 @@ public class Control extends Thread {
 			return true;
 		}
 
-		// TO-DO
-		// Main logic
-		// 1. Check local userInfo / tempUserInfo
-		// 2. Sent LOCK_REQUEST
-		// 3. Receive LOCK_ALLOWED / LOCK_DENIED
+		// 1. Check local userInfo / lockInfo
 		if (isUserOnRecord(userReg)) {
 			sendRegFailed(con, userReg);
 			return true;
-		} else {
-			tempUserInfo.put(userReg, secretReg);
-			sendLockReq(con, userReg, secretReg);
-			try {
-				Thread.sleep(500); // wait for LOCK feedback
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-			if (isUserOnRecord(userReg)) { // check if the userInfo has been updated
-				userInfo.put(userReg, secretReg);
-				tempUserInfo.remove(userReg);
-				sendRegSuccess(con, userReg);
-			} else {
+		}
+		// 2. Send LOCK_REQUEST
+		userInfo.put(userReg, secretReg);
+		lockInfo.put(userReg, 0);
+		int sentCount = sendLockReq(con, userReg, secretReg);
+
+		// 3. Receive LOCK_ALLOWED / LOCK_DENIED to confirm
+		while (true) {
+			if (lockInfo.get(userReg) == null) {
 				sendRegFailed(con, userReg);
+				sendLockDenied(con, userReg, secretReg);
+				userInfo.remove(userReg);
 				return true;
+			} else if (lockInfo.get(userReg) == sentCount) {
+				sendRegSuccess(con, userReg);
+				lockInfo.remove(userReg);
+				return false;
 			}
 		}
-		return false;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -426,11 +423,12 @@ public class Control extends Thread {
 	}
 
 	@SuppressWarnings("unchecked")
-	private void sendLockReq(Connection con, String user, String secret) {
+	private int sendLockReq(Connection con, String user, String secret) {
 		JSONObject lockRequest = new JSONObject();
 		lockRequest.put("command", "LOCK_REQUEST");
 		lockRequest.put("username", user);
 		lockRequest.put("secret", secret);
+		int sentCount = 0;
 
 		for (Connection c : connections) {
 			if (c.equals(con)) { // skip sending to the request server
@@ -438,9 +436,11 @@ public class Control extends Thread {
 			}
 			if (c.isServer()) {
 				c.writeMsg(lockRequest.toJSONString());
+				sentCount++;
 				log.info("LOCK_REQUEST SENT -> " + c.getFullAddr());
 			}
 		}
+		return sentCount;
 	}
 
 	// Shaoxi
@@ -451,32 +451,29 @@ public class Control extends Thread {
 		lockDenied.put("command", "LOCK_DENIED");
 		lockDenied.put("username", user);
 		lockDenied.put("secret", secret);
-		// con.writeMsg(lockDenied.toJSONString());
+
 		for (Connection c : connections) {
-			if (c.equals(con)) { // skip sending to the request server
+			if (c.equals(con)) {
 				continue;
 			}
 			if (c.isServer()) {
 				c.writeMsg(lockDenied.toJSONString());
-				log.info("LOCK_DENIED SENT -> " + c.getFullAddr());
+				log.info("LOCK_DENIED sent -> " + c.getFullAddr());
 			}
 		}
 	}
 
 	@SuppressWarnings("unchecked")
-	private void sendLockAllowed(Connection con, String user, String secret) {
+	private void sendLockAllowed(String user, String secret) {
 		JSONObject lockAllowed = new JSONObject();
 		lockAllowed.put("command", "LOCK_ALLOWED");
 		lockAllowed.put("username", user);
 		lockAllowed.put("secret", secret);
 		// con.writeMsg(lockDenied.toJSONString());
 		for (Connection c : connections) {
-			if (c.equals(con)) { // skip sending to the request server
-				continue;
-			}
 			if (c.isServer()) {
 				c.writeMsg(lockAllowed.toJSONString());
-				log.info("LOCK_ALLOWED SENT -> " + c.getFullAddr());
+				log.info("LOCK_ALLOWED sent -> " + c.getFullAddr());
 			}
 		}
 	}
@@ -503,8 +500,27 @@ public class Control extends Thread {
 			sendLockDenied(con, userLock, secretLock);
 			return false;
 		}
-		sendLockReq(con, userLock, secretLock);
-		return false;
+		userInfo.put(userLock, secretLock);
+		lockInfo.put(userLock, 0);
+		int sentCount = sendLockReq(con, userLock, secretLock);
+
+		while (true) {
+			if (lockInfo.get(userLock) == null) {
+				userInfo.remove(userLock);
+				// To the request source only
+				JSONObject lockDenied = new JSONObject();
+				lockDenied.put("command", "LOCK_DENIED");
+				lockDenied.put("username", userLock);
+				lockDenied.put("secret", secretLock);
+				con.writeMsg(lockDenied.toJSONString());
+				// To the other connected servers
+				sendLockDenied(con, userLock, secretLock);
+				return false;
+			} else if (lockInfo.get(userLock) == sentCount) {
+				sendLockAllowed(userLock, secretLock);
+				return false;
+			}
+		}
 	}
 
 	// Shaoxi
@@ -525,9 +541,9 @@ public class Control extends Thread {
 			con.writeMsg(invMsg.toJSONString());
 			return false;
 		}
-		userInfo.put(userLock, secretLock);
-		tempUserInfo.remove(userLock);
-		sendLockAllowed(con, userLock, secretLock);
+		if (lockInfo.get(userLock) != null) {
+			lockInfo.put(userLock, lockInfo.get(userLock) + 1);
+		}
 		return false;
 	}
 
@@ -549,26 +565,27 @@ public class Control extends Thread {
 			con.writeMsg(invMsg.toJSONString());
 			return false;
 		}
-		userInfo.remove(userLock);
-		tempUserInfo.remove(userLock);
+		if (lockInfo.get(userLock) != null) {
+			userInfo.remove(userLock);
+			lockInfo.remove(userLock);
+		}
 		sendLockDenied(con, userLock, secretLock);
+
 		return false;
 	}
-        
-        // Wei
-        // Process incoming SERVER_ANNOUNCE
-        // return: disconnect (true) / keep connection (false)
-        private boolean processSerAnn(Connection con, JSONObject msg) {
-                // test if the announcement format is correct, if not,
-                // disconnect the connection
-                if (msg.get("id") == null ||
-                        msg.get("load") == null ||
-                        msg.get("hostname") == null ||
-                        msg.get("port") == null) {
-                    return true;
-                }
-                // test if the server is already been authenticated
-                // if yes, return false. if not, return true.
-                return !con.isServer();
-        }
+
+	// Wei
+	// Process incoming SERVER_ANNOUNCE
+	// return: disconnect (true) / keep connection (false)
+	private boolean processSerAnn(Connection con, JSONObject msg) {
+		// test if the announcement format is correct, if not,
+		// disconnect the connection
+		if (msg.get("id") == null || msg.get("load") == null || msg.get("hostname") == null
+				|| msg.get("port") == null) {
+			return true;
+		}
+		// test if the server is already been authenticated
+		// if yes, return false. if not, return true.
+		return !con.isServer();
+	}
 }
