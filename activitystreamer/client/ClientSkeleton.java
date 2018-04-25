@@ -19,7 +19,6 @@ import java.net.UnknownHostException;
 
 // wei
 import java.util.Scanner;
-import java.util.logging.Level;
 
 public class ClientSkeleton extends Thread {
     private static final Logger log = LogManager.getLogger();
@@ -68,33 +67,50 @@ public class ClientSkeleton extends Thread {
         } 
 
     }
-		
-    @SuppressWarnings("unchecked")
-    public void sendActivityObject(JSONObject activityObj) {
-        // wei
-        // parse the activityObj to Json String
-        String sentJSONString = activityObj.toJSONString();
-        
-        writeMsg(sentJSONString);
-        log.info("Message: ", sentJSONString, " sent"); 
-        
-    }
-    
-    // wei
-    // a function that sends "login" command to server.
-    public void sendLogin() {
-        // create an authenticate json obj
-        JSONObject loginJSON = new JSONObject();
-        loginJSON.put("command", "LOGIN");
-        if (Settings.getUsername() != null) {
-            loginJSON.put("username", Settings.getUsername());
+	
+    // wei	
+    public void run(){
+        try {
+            // create a scanner to get clients input
+            // I assume that clients input JSONObj.
+            // Scanner sc = new Scanner(System.in);
+            String data;
+            JSONParser parser = new JSONParser();
+            // if a username is provided and no secret is provided,
+            // then generate a secret for this user and send register
+            // command, lastly print the sercret to client.
+            if (Settings.getUsername() != null &&
+                    !Settings.getUsername().equals("anonymous") &&
+                    Settings.getSecret() == null) {
+                Settings.setSecret(Settings.nextSecret());
+                log.info("Getting secret: " + Settings.getSecret());
+                this.sendRegister();
+            } else {
+                // send login command to server
+                this.sendLogin();
+            }
+            while(!term && (data = inreader.readLine()) != null) {
+                term = this.process(data);
+                // getting activity obj from scanner and send it to server.
+/******************** This part is used for scanner
+//                String msg = sc.nextLine().trim().replaceAll("\r","").replaceAll("\n","").replaceAll("\t", "");
+//                try {
+//                    JSONObject msgJSON = (JSONObject) parser.parse(msg);
+//                    sendActivityObject(msgJSON);                                      
+//                } catch (ParseException ex) {
+//                    log.error("invalid JSON object entered into input text field, data not sent");
+//                } 
+*********************/
+            }
+            
+            log.debug("connection closed to " + Settings.socketAddress(socket));
+            input.close();
+            open =false;
+            
+        } catch (IOException e) {
+            log.error("connection " + Settings.socketAddress((socket)) + " closed with exception: " + e);
         }
-        if (Settings.getSecret() != null) {
-            loginJSON.put("secret", Settings.getSecret());
-        }
-        this.writeMsg(loginJSON.toJSONString());
-        log.info("LOGIN REQUEST SENT");
-    }
+    }    
     
     // wei
     /*
@@ -119,62 +135,28 @@ public class ClientSkeleton extends Thread {
                 inreader.close();
                 output.close();
             } catch (IOException e) {
-                // already closed?
                 log.error("received exception closing the connection " + Settings.socketAddress(socket) +": "+e);
             }
         }
     }
 	
-    // wei	
-    public void run(){
-        try {
-            // create a scanner to get clients input
-            // I assume that clients input JSONObj.
-            Scanner sc = new Scanner(System.in);
-            String data;
-            JSONParser parser = new JSONParser();
-            // send login command to server
-            this.sendLogin();
-            while(!term && (data = inreader.readLine()) != null) {
-                term = this.process(data);
-                // getting activity obj from scanner and send it to server.
-                try {
-                    JSONObject msgJSON = (JSONObject) parser.parse(sc.nextLine());
-                    if (((String) msgJSON.get("command")).equals("LOGOUT")) {
-                        sendActivityObject(msgJSON);
-                        disconnect();
-                    } else {
-                        // send whatever client types, let server handles it.
-                        sendActivityObject(msgJSON);
-                    }                                        
-                } catch (ParseException ex) {
-                    java.util.logging.Logger.getLogger(ClientSkeleton.class.getName()).log(Level.SEVERE, null, ex);
-                }
-            }
-            
-            log.debug("connection closed to " + Settings.socketAddress(socket));
-            input.close();
-            // Do I need to close the socket?
-            // socket.close();
-            
-        } catch (IOException e) {
-            log.error("connection " + Settings.socketAddress((socket)) + " closed with exception: " + e);
-        }
-        
-        open = false;
-    }
-    
     // wei
     /*
      * Processing incoming messages from the connection.
      * Return true if the connection should close.
      */
     public synchronized boolean process(String msg) {
+        
+        log.info("Receive Message From Server: " + msg);
         //wei
         JSONParser parser = new JSONParser();
         try {
             // parese msg to JSONObject
             JSONObject msgJSON = (JSONObject) parser.parse(msg);
+            
+            // getting the received JSONobj to GUI
+            textFrame.setOutputText(msgJSON);
+           
             // get command
             String command = (String) msgJSON.get("command");
             switch(command)
@@ -188,7 +170,7 @@ public class ClientSkeleton extends Thread {
                     return true;
                     
                 case "ACTIVITY_BROADCAST":
-                    log.info((String) msgJSON.get("activity"));
+                    log.info((String) msgJSON.get("activity").toString());
                     return false;
                     
                 case "REDIRECT":
@@ -198,7 +180,18 @@ public class ClientSkeleton extends Thread {
                             remoteHost, remotePort);
                     // starts the protocol afresh.
                     clientSolution = new ClientSkeleton();
-                    ClientSkeleton newCon = ClientSkeleton.getInstance();
+                    return true;
+                    
+                case "REGISTER_FAILED":
+                    log.info((String) msgJSON.get("info"));
+                    System.exit(-1);
+                    
+                case "REGISTER_SUCCESS":
+                    log.info((String) msgJSON.get("info"));
+                    return false;
+                    
+                case "AUTHENTICATION_FAIL":
+                    log.info((String) msgJSON.get("info"));
                     return true;
                 
                 // default would be the situation that receives INVALID_MESSAGE
@@ -211,5 +204,61 @@ public class ClientSkeleton extends Thread {
         }
             
         return true;
+    }
+    
+    @SuppressWarnings("unchecked")
+    public void sendActivityObject(JSONObject activityObj) {
+        // wei
+        
+        // if aObj contains LOGOUT command, then send logout to server
+        if (activityObj.get("command") != null &&
+                activityObj.get("command").equals( "LOGOUT")) {
+            disconnect();
+            return;
+	}
+        // parse the activityObj to Json String
+        String sentJSONString = activityObj.toJSONString();
+        
+        JSONObject clientMeg = new JSONObject();
+        clientMeg.put("command", "ACTIVITY_MESSAGE");
+        clientMeg.put("username", Settings.getUsername());
+        clientMeg.put("secret", Settings.getSecret());
+        clientMeg.put("activity", activityObj);	
+        
+        log.info("Message: " + sentJSONString + " sent"); 
+        writeMsg(clientMeg.toJSONString());
+        
+    }
+    
+    // wei
+    // a function that sends "login" command to server.
+    @SuppressWarnings("unchecked")
+    public void sendLogin() {
+        // create an authenticate json obj
+        JSONObject loginJSON = new JSONObject();
+        loginJSON.put("command", "LOGIN");
+        loginJSON.put("username", Settings.getUsername());
+        loginJSON.put("secret", Settings.getSecret());
+
+        this.writeMsg(loginJSON.toJSONString());
+        log.info("LOGIN REQUEST SENT");
+    }
+    @SuppressWarnings("unchecked")
+    public void sendLogout() {
+        JSONObject logoutJSON = new JSONObject();
+        logoutJSON.put("commamd", "LOGOUT");
+        
+        this.writeMsg(logoutJSON.toJSONString());
+        log.info("LOGOUT REQUEST SENT");
+    }
+    @SuppressWarnings("unchecked")
+    public void sendRegister() {
+        JSONObject registerJSON = new JSONObject();
+        registerJSON.put("command", "REGISTER");
+        registerJSON.put("username", Settings.getUsername());
+        registerJSON.put("secret", Settings.getSecret());
+        
+        this.writeMsg(registerJSON.toJSONString());
+        log.info("REGISTER REQUEST SENT");
     }
 }
