@@ -97,6 +97,9 @@ public class Control extends Thread {
 			}
 			log.info("Received COMMAND: " + command);
 			switch (command) {
+			/*******************
+            * server case
+            */
 			case "AUTHENTICATE":
 				log.info("Receiving an Authenticate command.");
 				String secret = (String) JSONmsg.get("secret");
@@ -112,27 +115,28 @@ public class Control extends Thread {
 					con.setServer();
 					return false;
 				}
-
 			case "AUTHENTICATION_FAIL":
 				log.info((String) JSONmsg.get("info"));
 				log.info("Close connection to the master server");
 				return true;
-			case "SERVER_ANNOUNCE":
-				return processSerAnn(con, JSONmsg);
-			case "REGISTER":
-				return processReg(con, JSONmsg);
+            case "SERVER_ANNOUNCE":
+                return processSerAnn(con, JSONmsg);
 			case "LOCK_REQUEST":
 				return processLockReq(con, JSONmsg);
 			case "LOCK_DENIED":
 				return processLockDenied(con, JSONmsg);
 			case "LOCK_ALLOWED":
 				return processLockAllowed(con, JSONmsg);
-			case "ACITIVITY_MESSAGE":
-				return processActivityMessage(con, JSONmsg);
-			case "ACITIVITY_BROADCAST":
-				return processActivityBroadcast(con, JSONmsg);
 			case "INVALID_MESSAGE":
 				log.info((String) JSONmsg.get("info"));
+                        
+            /***********
+            * client case
+            */
+            case "REGISTER":
+				return processReg(con, JSONmsg);
+            case "LOGIN":
+                return processLogin(con, JSONmsg);
 			default:
 				log.info("DEFAULT:" + (String) JSONmsg.get("info"));
 				// log.info("close the server");
@@ -291,10 +295,10 @@ public class Control extends Thread {
 	// a function that sends Invalid message to client/connecting server if
 	// invalid message received.
 	@SuppressWarnings("unchecked")
-	public void sendInvalidMsg(Connection con) {
+	public void sendInvalidMsg(Connection con, String msg) {
 		JSONObject invalidMsg = new JSONObject();
 		invalidMsg.put("command", "INVALID_MESSAGE");
-		invalidMsg.put("info", "invalid command");
+		invalidMsg.put("info", msg);
 		con.writeMsg(invalidMsg.toJSONString());
 		log.info("INVALID_MESSAGE SENT");
 	}
@@ -589,12 +593,47 @@ public class Control extends Thread {
 		// disconnect the connection
 		if (msg.get("id") == null || msg.get("load") == null || msg.get("hostname") == null
 				|| msg.get("port") == null) {
+			sendInvalidMsg(con, "Missing fileds in the server announce");
 			return true;
 		}
 		// test if the server is already been authenticated
 		// if yes, return false. if not, return true.
 		return !con.isServer();
 	}
+	// Process incoming LOGIN command from client
+    // return: close connection (true) / keep connection (false)
+    @SuppressWarnings("unchecked")
+    private boolean processLogin(Connection con, JSONObject msg) {
+        if (msg.get("username") == null ||
+            msg.get("secret") == null) {
+            sendInvalidMsg(con, "Missing filed of username/secret");
+        }
+        String username = (String) msg.get("username");
+        String secret = (String) msg.get("secret");
+        // check if the secret is correct
+        if (userInfo.get("username") == null ||
+                !((String) userInfo.get("username")).equals(secret)) {
+            sendLoginFailed(con, username);
+            return true;
+        } else {
+            sendLoginSuccess(con, username);
+            return false;
+        }
+    }
+    @SuppressWarnings("unchecked")
+	private void sendLoginSuccess(Connection con, String msg) {
+		JSONObject logMsg = new JSONObject();
+		logMsg.put("command", "LOGIN_SUCCESS");
+		logMsg.put("info", "logged in as user " + msg);
+		con.writeMsg(logMsg.toJSONString());
+	}
+	@SuppressWarnings("unchecked")
+	private void sendLoginFailed(Connection con, String msg) {
+		JSONObject logMsg = new JSONObject();
+		logMsg.put("command", "LOGIN_FAILED");
+		logMsg.put("info", msg + " attempt to login with wrong secret");
+		con.writeMsg(logMsg.toJSONString());
+	}	
 	
 	/*******************Code by Leo*********************/
 	//Server received activity message from client
