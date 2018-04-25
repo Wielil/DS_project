@@ -592,4 +592,99 @@ public class Control extends Thread {
 		// if yes, return false. if not, return true.
 		return !con.isServer();
 	}
+	/*******************Code by Leo*********************/
+	//Server received activity message from client
+	//Fisrt, Check user's validation
+	//Then, if valid, broadcast to all other server and all clients
+	//If invalid, send authentication failed message to user
+
+	//disconnect return true; keep connection return false
+
+	public boolean processActivityMessage(Conncetion connect, JSONObject msg){
+		String userName = (String)msg.get("username");
+		String userSecret = (String)msg.get("secret");
+		String content = (String)msg.get("activity");
+
+		//Generate New Json Message First
+		JSONObject newMsg = new JSONObject();
+		newMsg.put("command", "ACITIVITY_BROADCAST");
+		newMsg.put("activity", content);
+
+		//*****************If user login as anonymous user*******************
+		//*****************activity is allowed to be sent******************
+		if(userName == "anonymous" || userName == ""){
+			activityToClient(connections, newMsg);
+			activityToServer(connections, newMsg);
+			return false;
+		}
+		//***************If User Login As Normal User***********************
+		//***************Do User's Validation Checking***************
+		if (!isSecretCorrect(userName, userSecret)) {
+			sendAuthFail(connect, userSecret)
+			return true;
+		}
+		else{
+			activityToClient(connections, newMsg);
+			activityToServer(connections, newMsg);
+			return false;
+		}
+	}
+
+	//!!!!!!!!!!!!!!!!!!!Unfinished!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	
+	//Code By Leo
+	//***********Process Acitivity Boardcast after Received
+	//*************Check The server is authenticate or not
+	
+	//!!!!!!!!!!!!!!!!!!!Unfinished!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+	public boolean processActivityBroadcast(Conncetion connect, JSONObject msg){
+	//Here should be the code that check server is authenticated or not
+		//Then For every server connect to this server
+		//Send boardcast to all other server
+		for(Conncetion c : connections){
+			if (c.equals(conneect)) {
+				continue;
+			}
+			else if(c.isServer()){
+				c.writeMsg(msg.toJSONString());
+				log.info("ACITIVITY_BROADCAST SENT ->" + c.getFullAddr());
+			}
+		}
+	}
+
+	/*******************Code by Leo*********************/
+	//server boardcast activity to all clients connect to current server
+	//Find all client connections
+	//Then send message to all client
+	public void activityToClient(ArrayList<Conncetion> connections, JSONObject msg) throws UnknownHostException {
+		for (Conncetion con : connections) {
+			if(con.isClient()){
+				con.writeMsg(msg.toJSONString());
+			}
+		}
+	}
+
+	/*******************Code by Leo*********************/
+	//server boardcast activity to all other server
+	//Find all server connections
+	//Then send message to all other server
+	//Except the server where current server received this message from
+	public void activityToServer(ArrayList<Conncetion> connections, JSONObject msg){
+		for (Conncetion con : connections) {
+			if(con.isServer()){
+				con.writeMsg(msg.toJSONString());
+			}
+		}
+	}
+
+	private boolean isSecretCorrect(String user, String secret){
+		if(isUserOnRecord(user)){
+			String value = userInfo.get(user);
+			if(value == secret){
+				return true;
+			}
+		}
+		return false;
+	}
 }
