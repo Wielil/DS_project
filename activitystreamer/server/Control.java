@@ -595,15 +595,16 @@ public class Control extends Thread {
 		// if yes, return false. if not, return true.
 		return !con.isServer();
 	}
+	
 	/*******************Code by Leo*********************/
 	//Server received activity message from client
+
 	//Fisrt, Check user's validation
 	//Then, if valid, broadcast to all other server and all clients
 	//If invalid, send authentication failed message to user
 
 	//disconnect return true; keep connection return false
-
-	public boolean processActivityMessage(Conncetion connect, JSONObject msg){
+	public boolean processActivityMessage(Connection connect, JSONObject msg){
 		String userName = (String)msg.get("username");
 		String userSecret = (String)msg.get("secret");
 		String content = (String)msg.get("activity");
@@ -622,31 +623,39 @@ public class Control extends Thread {
 		}
 		//***************If User Login As Normal User***********************
 		//***************Do User's Validation Checking***************
-		if (!isSecretCorrect(userName, userSecret)) {
-			sendAuthFail(connect, userSecret)
-			return true;
-		}
-		else{
+		else if (isSecretCorrect(userName, userSecret)) {
 			activityToClient(connections, newMsg);
 			activityToServer(connections, newMsg);
 			return false;
 		}
+		else if (!isSecretCorrect(userName,userSecret)){
+			sendAuthFail(connect, userSecret)
+			return true;
+		}
+		else{
+			sendInvalidMsg(connect);
+			return true;
+		}
 	}
 
-	//!!!!!!!!!!!!!!!!!!!Unfinished!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	
-	//Code By Leo
-	//***********Process Acitivity Boardcast after Received
-	//*************Check The server is authenticate or not
-	
-	//!!!!!!!!!!!!!!!!!!!Unfinished!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	/*****************Code By Leo********************/
+	//Process Acitivity Boardcast after Received
 
-	public boolean processActivityBroadcast(Conncetion connect, JSONObject msg){
-	//Here should be the code that check server is authenticated or not
-		//Then For every server connect to this server
-		//Send boardcast to all other server
-		for(Conncetion c : connections){
-			if (c.equals(conneect)) {
+	//Check The server is authenticate or not
+	//If the server is not authenticate, disconnect and send Invalid Message
+	//Otherwise, broadcast the JSON message it have received to all other server
+
+	//disconnect return true; keep connection return false
+	public boolean processActivityBroadcast(Connection connect, JSONObject msg){
+
+		//Check server is authenticate
+		if(!connect.isServer()){
+			sendInvalidMsg(connect)
+			return true;
+		}
+
+		for(Connection c : connections){
+			if (c.equals(connect)) {
 				continue;
 			}
 			else if(c.isServer()){
@@ -654,14 +663,16 @@ public class Control extends Thread {
 				log.info("ACITIVITY_BROADCAST SENT ->" + c.getFullAddr());
 			}
 		}
+		return false;
 	}
 
 	/*******************Code by Leo*********************/
 	//server boardcast activity to all clients connect to current server
+
 	//Find all client connections
 	//Then send message to all client
-	public void activityToClient(ArrayList<Conncetion> connections, JSONObject msg) throws UnknownHostException {
-		for (Conncetion con : connections) {
+	public void activityToClient(ArrayList<Connection> connections, JSONObject msg){
+		for (Connection con : connections) {
 			if(con.isClient()){
 				con.writeMsg(msg.toJSONString());
 			}
@@ -670,21 +681,23 @@ public class Control extends Thread {
 
 	/*******************Code by Leo*********************/
 	//server boardcast activity to all other server
+
 	//Find all server connections
 	//Then send message to all other server
-	//Except the server where current server received this message from
-	public void activityToServer(ArrayList<Conncetion> connections, JSONObject msg){
-		for (Conncetion con : connections) {
+	public void activityToServer(ArrayList<Connection> connections, JSONObject msg) throws UnknownHostException{
+		for (Connection con : connections) {
 			if(con.isServer()){
 				con.writeMsg(msg.toJSONString());
 			}
 		}
 	}
 
+	//Code by yuri
+	//Function to check username and secret matches or not
 	private boolean isSecretCorrect(String user, String secret){
 		if(isUserOnRecord(user)){
 			String value = userInfo.get(user);
-			if(value == secret){
+			if(value.equals(secret)){
 				return true;
 			}
 		}
