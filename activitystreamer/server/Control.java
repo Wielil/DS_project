@@ -126,6 +126,10 @@ public class Control extends Thread {
 				return processLockDenied(con, JSONmsg);
 			case "LOCK_ALLOWED":
 				return processLockAllowed(con, JSONmsg);
+			case "ACITIVITY_MESSAGE":
+				return processActivityMessage(con, JSONmsg);
+			case "ACITIVITY_BROADCAST":
+				return processActivityBroadcast(con, JSONmsg);
 			case "INVALID_MESSAGE":
 				log.info((String) JSONmsg.get("info"));
 			default:
