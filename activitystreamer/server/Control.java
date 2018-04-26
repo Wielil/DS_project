@@ -631,7 +631,7 @@ public class Control extends Thread {
 			sendLoginFailed(con, username);
             return true;
         } else {
-            sendLoginSuccess(con, username)
+            sendLoginSuccess(con, username);
 			return false;
         }
     }
