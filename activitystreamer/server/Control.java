@@ -140,11 +140,12 @@ public class Control extends Thread {
 				return processReg(con, JSONmsg);
             case "LOGIN":
                 return processLogin(con, JSONmsg);
-			default:
-				log.info("DEFAULT:" + (String) JSONmsg.get("info"));
-				// log.info("close the server");
-				// listener.getServerSocket().close();
-				return true;
+	    default:
+		log.info("DEFAULT:" + (String) JSONmsg.get("info"));
+	        sendInvMsg("Unknown Command");
+		// log.info("close the server");
+		// listener.getServerSocket().close();
+		return true;
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
