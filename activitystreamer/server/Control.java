@@ -618,6 +618,7 @@ public class Control extends Thread {
         if (username == null ||
                 username.equals("anonymous")) {
             sendLoginSuccess(con, username);
+	    con.setClient();
             return false;
         }
             
@@ -626,16 +627,16 @@ public class Control extends Thread {
             return true;
         }
 
-        // check if client wants to log in as anonymous
         
-		// check if the secret is correct
+	// check if the secret is correct
         if (userInfo.get(username) == null ||
                 !((String) userInfo.get(username)).equals(secret)) {
-			sendLoginFailed(con, username);
+	    sendLoginFailed(con, username);
             return true;
         } else {
             sendLoginSuccess(con, username);
-			return false;
+	    con.setClient();
+	    return false;
         }
     }
     @SuppressWarnings("unchecked")
