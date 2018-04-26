@@ -607,20 +607,32 @@ public class Control extends Thread {
     // return: close connection (true) / keep connection (false)
     @SuppressWarnings("unchecked")
     private boolean processLogin(Connection con, JSONObject msg) {
-        if (msg.get("username") == null ||
-            msg.get("secret") == null) {
-            sendInvalidMsg(con, "Missing filed of username/secret");
-        }
+            
         String username = (String) msg.get("username");
         String secret = (String) msg.get("secret");
-        // check if the secret is correct
-        if (userInfo.get("username") == null ||
-                !((String) userInfo.get("username")).equals(secret)) {
-            sendLoginFailed(con, username);
-            return true;
-        } else {
+            
+        // check if client wants to log in as anonymous
+        if (username == null ||
+                username.equals("anonymous")) {
             sendLoginSuccess(con, username);
             return false;
+        }
+            
+        if (msg.get("secret") == null) {
+            sendInvalidMsg(con, "Missing filed of secret");
+            return true;
+        }
+
+        // check if client wants to log in as anonymous
+        
+		// check if the secret is correct
+        if (userInfo.get("username") == null ||
+                !((String) userInfo.get("username")).equals(secret)) {
+			sendLoginFailed(con, username);
+            return true;
+        } else {
+            sendLoginSuccess(con, username)
+			return false;
         }
     }
     @SuppressWarnings("unchecked")
