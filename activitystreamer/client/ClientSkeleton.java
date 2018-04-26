@@ -188,6 +188,8 @@ public class ClientSkeleton extends Thread {
                     
                 case "REGISTER_SUCCESS":
                     log.info((String) msgJSON.get("info"));
+		            // sendLogin directly once registration successes
+	                sendLogin();
                     return false;
                     
                 case "AUTHENTICATION_FAIL":
