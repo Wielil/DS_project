@@ -82,8 +82,8 @@ public class Control extends Thread {
 	 * Processing incoming messages from the connection. Return true if the
 	 * connection should close.
 	 */
-	public synchronized boolean process(Connection con, String msg) {
-
+	//public synchronized boolean process(Connection con, String msg) {
+	public boolean process(Connection con, String msg) {
 		// wei
 		JSONParser parser = new JSONParser();
 		try {
@@ -156,7 +156,8 @@ public class Control extends Thread {
 	/*
 	 * The connection has been closed by the other party.
 	 */
-	public synchronized void connectionClosed(Connection con) {
+	//public synchronized void connectionClosed(Connection con) {
+	public void connectionClosed(Connection con) {
 		// if(!term)
 		connections.remove(con);
 	}
@@ -165,7 +166,8 @@ public class Control extends Thread {
 	 * A new incoming connection has been established, and a reference is returned
 	 * to it
 	 */
-	public synchronized Connection incomingConnection(Socket s) throws IOException {
+	//public synchronized Connection incomingConnection(Socket s) throws IOException {
+	public Connection incomingConnection(Socket s) throws IOException {
 		log.debug("incomming connection: " + Settings.socketAddress(s));
 		Connection c = new Connection(s);
 		connections.add(c);
@@ -177,7 +179,8 @@ public class Control extends Thread {
 	 * A new outgoing connection has been established, and a reference is returned
 	 * to it
 	 */
-	public synchronized Connection outgoingConnection(Socket s) throws IOException {
+	//public synchronized Connection outgoingConnection(Socket s) throws IOException {
+	public Connection outgoingConnection(Socket s) throws IOException {
 		log.debug("outgoing connection: " + Settings.socketAddress(s));
 		Connection c = new Connection(s);
 		c.setServer(); // all outgoing connections are server connections
@@ -626,8 +629,8 @@ public class Control extends Thread {
         // check if client wants to log in as anonymous
         
 		// check if the secret is correct
-        if (userInfo.get("username") == null ||
-                !((String) userInfo.get("username")).equals(secret)) {
+        if (userInfo.get(username) == null ||
+                !((String) userInfo.get(username)).equals(secret)) {
 			sendLoginFailed(con, username);
             return true;
         } else {
@@ -653,7 +656,7 @@ public class Control extends Thread {
 	/*******************Code by Leo*********************/
 	//Server received activity message from client
 
-	//Fisrt, Check user's validation
+	//First, Check user's validation
 	//Then, if valid, broadcast to all other server and all clients
 	//If invalid, send authentication failed message to user
 
@@ -661,7 +664,8 @@ public class Control extends Thread {
 	public boolean processActivityMessage(Connection connect, JSONObject msg){
 		String userName = (String)msg.get("username");
 		String userSecret = (String)msg.get("secret");
-		String content = (String)msg.get("activity");
+		//JSONObject content = msg.getJSONObject("activity");
+		JSONObject content = (JSONObject) msg.get("activity");
 
 		//Generate New Json Message First
 		JSONObject newMsg = new JSONObject();
@@ -670,16 +674,16 @@ public class Control extends Thread {
 
 		//*****************If user login as anonymous user*******************
 		//*****************activity is allowed to be sent******************
-		if(userName == "anonymous" || userName == ""){
-			activityToClient(connections, newMsg);
-			activityToServer(connections, newMsg);
+		if(userName.equals("anonymous")|| userName.equals("")){
+			activityToClient(getConnections(), newMsg);
+			activityToServer(getConnections(), newMsg);
 			return false;
 		}
 		//***************If User Login As Normal User***********************
 		//***************Do User's Validation Checking***************
 		else if (isSecretCorrect(userName, userSecret)) {
-			activityToClient(connections, newMsg);
-			activityToServer(connections, newMsg);
+			activityToClient(getConnections(), newMsg);
+			activityToServer(getConnections(), newMsg);
 			return false;
 		}
 		else if (!isSecretCorrect(userName,userSecret)){
@@ -693,7 +697,7 @@ public class Control extends Thread {
 	}
 
 	/*****************Code By Leo********************/
-	//Process Activity Boardcast after Received
+	//Process Activity Broadcast after Received
 
 	//Check The server is authenticate or not
 	//If the server is not authenticate, disconnect and send Invalid Message
@@ -708,7 +712,7 @@ public class Control extends Thread {
 			return true;
 		}
 
-		for(Connection c : connections){
+		for(Connection c : getConnections()){
 			if (c.equals(connect)) {
 				continue;
 			}
@@ -721,7 +725,7 @@ public class Control extends Thread {
 	}
 
 	/*******************Code by Leo*********************/
-	//server boardcast activity to all clients connect to current server
+	//server broadcast activity to all clients connect to current server
 
 	//Find all client connections
 	//Then send message to all client
@@ -734,7 +738,7 @@ public class Control extends Thread {
 	}
 
 	/*******************Code by Leo*********************/
-	//server boardcast activity to all other server
+	//server broadcast activity to all other server
 
 	//Find all server connections
 	//Then send message to all other server
