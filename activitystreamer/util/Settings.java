@@ -86,17 +86,17 @@ public class Settings {
 	
 	// load = load - 1
 	public static void decLoad() {
-        Settings.load--;
-    }
+        	Settings.load--;
+    	}
 	
 	// load = load + 1
-    public static void incLoad() {
-        Settings.load++;
-    }
+    	public static void incLoad() {
+        	Settings.load++;
+    	}
 	
-    public static int getLoad() {
-        return load;
-    }
+    	public static int getLoad() {
+        	return load;
+    	}
 
 	
 	/*
