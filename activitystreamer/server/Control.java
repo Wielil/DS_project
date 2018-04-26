@@ -200,7 +200,7 @@ public class Control extends Thread {
 
 			try {
 				Thread.sleep(3000);
-				if (connections.size() == 0) {
+				if (connections.isEmpty()) {
 					term = true;
 					log.info("Sub Server Shutdown");
 					System.exit(-1);
