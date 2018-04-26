@@ -142,9 +142,7 @@ public class Control extends Thread {
                 return processLogin(con, JSONmsg);
 	    default:
 		log.info("DEFAULT:" + (String) JSONmsg.get("info"));
-	        sendInvMsg("Unknown Command");
-		// log.info("close the server");
-		// listener.getServerSocket().close();
+	        sendInvalidMsg(con, "Unknown command");
 		return true;
 			}
 		} catch (Exception e) {
