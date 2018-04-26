@@ -27,9 +27,11 @@ public class Control extends Thread {
 
 	private static boolean masterFlag; // Used to check if the server is a master server
 	
-	private static HashMap<String, String> userInfo = new HashMap<String, String>(); // Global user info map <username,
+	private static HashMap<String, String> userInfo = new HashMap<>(); // <username, secret>
 																						// password>
-	private static HashMap<String, Integer> lockInfo = new HashMap<String, Integer>();
+	private static HashMap<String, Integer> lockInfo = new HashMap<>();
+	
+	private static HashMap<Integer, JSONObject> loadInfo = new HashMap<>(); // <load, Server_Announce>
 
 	private static int serverId;
 
@@ -316,20 +318,9 @@ public class Control extends Thread {
 
 		serverAnnounce.put("command", "SERVER_ANNOUNCE");
 		serverAnnounce.put("id", serverId);
-		// load is the number of clients connecting to this server
-		int load = 0;
-		for (Connection con : connections) {
-			if (con.isClient()) {
-				load++;
-			}
-		}
-		serverAnnounce.put("load", load);
+		serverAnnounce.put("load", Settings.getLoad());
 		serverAnnounce.put("hostname", Settings.getLocalHostname());
 		serverAnnounce.put("port", Settings.getLocalPort());
-
-		// // include the information of client to ensure the process
-		// // of login, however, it is not mentioned in the spec.
-		// serverAnnounce.put("userInfo", userInfo);
 
 		// send serverAnnounce to every server in the system
 		for (Connection con : connections) {
@@ -601,6 +592,9 @@ public class Control extends Thread {
 			sendInvalidMsg(con, "Missing fileds in the server announce");
 			return true;
 		}
+		if (con.isServer()) {
+			loadInfo.put((int) msg.get("load"), msg);
+		}
 		// test if the server is already been authenticated
 		// if yes, return false. if not, return true.
 		return !con.isServer();
@@ -616,7 +610,17 @@ public class Control extends Thread {
         // check if client wants to log in as anonymous
         if (username == null ||
                 username.equals("anonymous")) {
-            sendLoginSuccess(con, username);
+            	sendLoginSuccess(con, username);
+	    // if has other servers' load less than this server's load
+	    // then redirect this con to this server and close connection
+	    for (int keys : loadInfo.keySet()) {
+		    if (keys + 2 <= Settings.getLoad()) {
+			    String hostname = (String) loadInfo.get(keys).get("hostname");
+			    int pornum = (int) loadInfo.get(keys).get("port");
+			    sendRedirect(con, hostname, pornum);
+			    return true;
+		    }
+	    }
 	    con.setClient();
             return false;
         }
@@ -651,7 +655,15 @@ public class Control extends Thread {
 		logMsg.put("command", "LOGIN_FAILED");
 		logMsg.put("info", msg + " attempt to login with wrong secret");
 		con.writeMsg(logMsg.toJSONString());
-	}	
+	}
+	@SuppressWarnings("unchecked")
+    private void sendRedirect(Connection con, String host, int port) {
+        JSONObject msg = new JSONObject();
+        msg.put("command", "REDIRECT");
+        msg.put("hostname", host);
+        msg.put("port", port);
+        con.writeMsg(msg.toJSONString());
+    }
 	
 	/*******************Code by Leo*********************/
 	//Server received activity message from client
