@@ -17,6 +17,7 @@ public class Settings {
 	private static int activityInterval = 5000; // milliseconds
 	private static String secret = null;
 	private static String username = "anonymous";
+	private static int load = 0; // the number of clients connected to the server.
 
 	
 	public static int getLocalPort() {
@@ -82,6 +83,20 @@ public class Settings {
 	public static void setLocalHostname(String localHostname) {
 		Settings.localHostname = localHostname;
 	}
+	
+	// load = load - 1
+	public static void decLoad() {
+        Settings.load--;
+    }
+	
+	// load = load + 1
+    public static void incLoad() {
+        Settings.load++;
+    }
+	
+    public static int getLoad() {
+        return load;
+    }
 
 	
 	/*
