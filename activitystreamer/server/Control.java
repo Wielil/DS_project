@@ -127,13 +127,12 @@ public class Control extends Thread {
 				return processLockDenied(con, JSONmsg);
 			case "LOCK_ALLOWED":
 				return processLockAllowed(con, JSONmsg);
+			case "ACTIVITY_MESSAGE":
+				return processActivityMessage(con, JSONmsg);
+			case "ACTIVITY_BROADCAST":
+				return processActivityBroadcast(con, JSONmsg);
 			case "INVALID_MESSAGE":
 				log.info((String) JSONmsg.get("info"));
-			case "ACITIVITY_MESSAGE":
-				return processActivityMessage(con, JSONmsg);
-			case "ACITIVITY_BROADCAST":
-				return processActivityBroadcast(con, JSONmsg);
-                        
             /***********
             * client case
             */
@@ -654,7 +653,7 @@ public class Control extends Thread {
 
 		//Generate New Json Message First
 		JSONObject newMsg = new JSONObject();
-		newMsg.put("command", "ACITIVITY_BROADCAST");
+		newMsg.put("command", "ACTIVITY_BROADCAST");
 		newMsg.put("activity", content);
 
 		//*****************If user login as anonymous user*******************
@@ -672,17 +671,17 @@ public class Control extends Thread {
 			return false;
 		}
 		else if (!isSecretCorrect(userName,userSecret)){
-			sendAuthFail(connect, userSecret)
+			sendAuthFail(connect, userSecret);
 			return true;
 		}
 		else{
-			sendInvalidMsg(connect);
+			sendInvalidMsg(connect,"unrecognized format of activity message");
 			return true;
 		}
 	}
 
 	/*****************Code By Leo********************/
-	//Process Acitivity Boardcast after Received
+	//Process Activity Boardcast after Received
 
 	//Check The server is authenticate or not
 	//If the server is not authenticate, disconnect and send Invalid Message
@@ -693,7 +692,7 @@ public class Control extends Thread {
 
 		//Check server is authenticate
 		if(!connect.isServer()){
-			sendInvalidMsg(connect)
+			sendInvalidMsg(connect,"Unauthenticate Server Connection");
 			return true;
 		}
 
@@ -703,7 +702,7 @@ public class Control extends Thread {
 			}
 			else if(c.isServer()){
 				c.writeMsg(msg.toJSONString());
-				log.info("ACITIVITY_BROADCAST SENT ->" + c.getFullAddr());
+				log.info("ACTIVITY_BROADCAST SENT ->" + c.getFullAddr());
 			}
 		}
 		return false;
@@ -727,7 +726,7 @@ public class Control extends Thread {
 
 	//Find all server connections
 	//Then send message to all other server
-	public void activityToServer(ArrayList<Connection> connections, JSONObject msg) throws UnknownHostException{
+	public void activityToServer(ArrayList<Connection> connections, JSONObject msg) {
 		for (Connection con : connections) {
 			if(con.isServer()){
 				con.writeMsg(msg.toJSONString());
