@@ -91,11 +91,10 @@ public class Connection extends Thread {
 
 			log.debug("connection closed to " + Settings.socketAddress(socket));
 			Control.getInstance().connectionClosed(this);
+			// load should be minus 1 if this connection is client -> server
+			// when closing it
+			if (this.isClient()) Settings.decLoad();
 			in.close();
-
-			// wei
-			// should we close the socket????
-			// socket.close();
 
 		} catch (IOException | InterruptedException e) {
 			log.error("connection " + Settings.socketAddress(socket) + " closed with exception: " + e);
@@ -135,6 +134,8 @@ public class Connection extends Thread {
 
 	// return if it is a valid client
 	boolean isClient() {
+		// everytime has a new client, load++
+		Settings.incLoad();
 		return clientFlag;
 	}
 
