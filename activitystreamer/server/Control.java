@@ -28,7 +28,7 @@ public class Control extends Thread {
 	private static boolean masterFlag; // Used to check if the server is a master server
 
 	private static HashMap<String, String> userInfo = new HashMap<>(); // <username, secret>
-																		// password>
+	// password>
 	private static HashMap<String, Integer> lockInfo = new HashMap<>();
 
 	private static HashMap<String, JSONObject> loadInfo = new HashMap<>(); // <serverID, Server_Announce>
@@ -102,51 +102,51 @@ public class Control extends Thread {
 
 			log.info("Received COMMAND: " + command);
 			switch (command) {
-			/*******************
-			 * server case
-			 */
-			case "AUTHENTICATE":
-				log.info("Receiving an Authenticate command.");
-				String secret = (String) JSONmsg.get("secret");
-				if (secret == null) {
-					log.debug("No secret received");
-				} else {
-					log.debug("Secret received: " + secret);
-				}
-				if (!Settings.getSecret().equals(secret)) {
-					sendAuthFail(con, secret);
+				/*******************
+				 * server case
+				 */
+				case "AUTHENTICATE":
+					log.info("Receiving an Authenticate command.");
+					String secret = (String) JSONmsg.get("secret");
+					if (secret == null) {
+						log.debug("No secret received");
+					} else {
+						log.debug("Secret received: " + secret);
+					}
+					if (!Settings.getSecret().equals(secret)) {
+						sendAuthFail(con, secret);
+						return true;
+					} else {
+						con.setServer();
+						return false;
+					}
+				case "AUTHENTICATION_FAIL":
+					log.info((String) JSONmsg.get("info"));
+					log.info("Close connection to the master server");
 					return true;
-				} else {
-					con.setServer();
-					return false;
-				}
-			case "AUTHENTICATION_FAIL":
-				log.info((String) JSONmsg.get("info"));
-				log.info("Close connection to the master server");
-				return true;
-			case "SERVER_ANNOUNCE":
-				return processSerAnn(con, JSONmsg);
-			case "LOCK_REQUEST":
-				return processLockReq(con, JSONmsg);
-			case "LOCK_DENIED":
-				return processLockDenied(con, JSONmsg);
-			case "LOCK_ALLOWED":
-				return processLockAllowed(con, JSONmsg);
-			case "ACTIVITY_MESSAGE":
-				return processActivityMessage(con, JSONmsg);
-			case "ACTIVITY_BROADCAST":
-				return processActivityBroadcast(con, JSONmsg);
-			/***********
-			 * client case
-			 */
-			case "REGISTER":
-				return processReg(con, JSONmsg);
-			case "LOGIN":
-				return processLogin(con, JSONmsg);
-			default:
-				log.info("DEFAULT:" + (String) JSONmsg.get("info"));
-				sendInvalidMsg(con, "Unknown command");
-				return true;
+				case "SERVER_ANNOUNCE":
+					return processSerAnn(con, JSONmsg);
+				case "LOCK_REQUEST":
+					return processLockReq(con, JSONmsg);
+				case "LOCK_DENIED":
+					return processLockDenied(con, JSONmsg);
+				case "LOCK_ALLOWED":
+					return processLockAllowed(con, JSONmsg);
+				case "ACTIVITY_MESSAGE":
+					return processActivityMessage(con, JSONmsg);
+				case "ACTIVITY_BROADCAST":
+					return processActivityBroadcast(con, JSONmsg);
+				/***********
+				 * client case
+				 */
+				case "REGISTER":
+					return processReg(con, JSONmsg);
+				case "LOGIN":
+					return processLogin(con, JSONmsg);
+				default:
+					log.info("DEFAULT:" + (String) JSONmsg.get("info"));
+					sendInvalidMsg(con, "Unknown command");
+					return true;
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -529,7 +529,7 @@ public class Control extends Thread {
 		lockAllowed.put("secret", secretLock);
 		con.writeMsg(lockAllowed.toJSONString());
 		log.info("LOCK_ALLOWED sent -> " + con.getFullAddr());
-		
+
 		// Broadcast LOCK_ALLOWED to the other server
 		sendLockAllowed(con, userLock, secretLock);
 
@@ -558,6 +558,7 @@ public class Control extends Thread {
 		if (lockInfo.get(userLock) != null) {
 			lockInfo.put(userLock, lockInfo.get(userLock) + 1);
 		}
+		sendLockAllowed(con,userLock,secretLock);
 		return false;
 	}
 
@@ -618,11 +619,11 @@ public class Control extends Thread {
 		}
 		//////////////////////////////////////////
 		// redirect server_announce
-                for (Connection c : connections) {
-                    if (c.isServer() && !c.equals(con)) {
-                        c.writeMsg(msg.toJSONString());
-                    }
-                }
+		for (Connection c : connections) {
+			if (c.isServer() && !c.equals(con)) {
+				c.writeMsg(msg.toJSONString());
+			}
+		}
 		//////////////////////////////////////////
 		if (con.isServer()) {
 			loadInfo.put((String) msg.get("id"), msg);
@@ -715,7 +716,9 @@ public class Control extends Thread {
 
 		// Generate New Json Message First
 		JSONObject newMsg = new JSONObject();
-
+        if(!connect.isClient()){
+            return true;
+        }
 		// *****************If user login as anonymous user*******************
 		// *****************activity is allowed to be sent******************
 		if (userName.equals("anonymous") || userName.equals("")) {
