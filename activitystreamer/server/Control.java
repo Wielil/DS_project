@@ -634,6 +634,7 @@ public class Control extends Thread {
 
 		// check if client wants to log in as anonymous
 		if (username == null || username.equals("anonymous")) {
+                        log.info("SENDING LOGIN SUCCESS");
 			sendLoginSuccess(con, username);
 			// if has other servers' load less than this server's load
 			// then redirect this con to this server and close connection
@@ -643,6 +644,7 @@ public class Control extends Thread {
 					JSONObject serverAnn = loadInfo.get(key);
 					String hostname = (String) serverAnn.get("hostname");
 					int pornum = Integer.parseInt(serverAnn.get("port").toString());
+                                        log.info("SENDING REDIRECT");
 					sendRedirect(con, hostname, pornum);
 					return true;
 				}
@@ -658,12 +660,25 @@ public class Control extends Thread {
 
 		// check if the secret is correct
 		if (userInfo.get(username) == null || !((String) userInfo.get(username)).equals(secret)) {
+                        log.info("SENDING LOGIN Fail");
 			sendLoginFailed(con, username);
 			return true;
 		} else {
+                        log.info("SENDING LOGIN SUCCESS");
 			sendLoginSuccess(con, username);
-			con.setClient();
-			return false;
+                        for (String key : loadInfo.keySet()) {
+				int load = Integer.parseInt(loadInfo.get(key).get("load").toString());
+				if (load + 2 <= Settings.getLoad()) {
+					JSONObject serverAnn = loadInfo.get(key);
+					String hostname = (String) serverAnn.get("hostname");
+					int pornum = Integer.parseInt(serverAnn.get("port").toString());
+                                        log.info("SENDING REDIRECT");
+					sendRedirect(con, hostname, pornum);
+					return true;
+				}
+			}
+		con.setClient();
+		return false;
 		}
 	}
         
