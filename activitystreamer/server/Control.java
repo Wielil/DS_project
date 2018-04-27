@@ -97,6 +97,7 @@ public class Control extends Thread {
 				command = (String) JSONmsg.get("command");
 			} else {
 				log.info("Invalid command. Close connection.");
+                                sendInvalidMsg(con, "Invalid command");
 				return true;
 			}
 
@@ -110,6 +111,8 @@ public class Control extends Thread {
 					String secret = (String) JSONmsg.get("secret");
 					if (secret == null) {
 						log.debug("No secret received");
+                                                sendInvalidMsg(con, "No secret provided");
+                                                return true;
 					} else {
 						log.debug("Secret received: " + secret);
 					}
@@ -124,6 +127,8 @@ public class Control extends Thread {
 					log.info((String) JSONmsg.get("info"));
 					log.info("Close connection to the master server");
 					return true;
+                                case "INVALID_MESSAGE":
+                                        return processInvalidMsg(JSONmsg);
 				case "SERVER_ANNOUNCE":
 					return processSerAnn(con, JSONmsg);
 				case "LOCK_REQUEST":
@@ -144,7 +149,7 @@ public class Control extends Thread {
 				case "LOGIN":
 					return processLogin(con, JSONmsg);
 				default:
-					log.info("DEFAULT:" + (String) JSONmsg.get("info"));
+					log.info("RECEIVE Unknown command" + command);
 					sendInvalidMsg(con, "Unknown command");
 					return true;
 			}
@@ -232,8 +237,7 @@ public class Control extends Thread {
 		// getting server ip
 		try {
 			String ipAddress = InetAddress.getLocalHost().getHostAddress();
-			int serverIntId = ipToInt(ipAddress) + Settings.getLocalPort();
-			serverId = Integer.toString(serverIntId);
+			serverId = ipAddress + ":" + Integer.toString(Settings.getLocalPort());
 		} catch (UnknownHostException ex) {
 			java.util.logging.Logger.getLogger(Control.class.getName()).log(Level.SEVERE, null, ex);
 		}
@@ -290,17 +294,21 @@ public class Control extends Thread {
 			Authenticate.put("secret", Settings.getSecret());
 		}
 		con.writeMsg(Authenticate.toJSONString());
-		log.info("AUTHENTICATE SENT");
+		log.info("AUTHENTICATE SENT -> " + con.getFullAddr());
 	}
 
 	// a function that sends Authenticate_fail Json obj if secret is incorrect
 	@SuppressWarnings("unchecked")
-	public void sendAuthFail(Connection con, String secret) {
-		JSONObject Authenticate_Fail = new JSONObject();
+	public void sendAuthFail(Connection con, String msg) {
+                JSONObject Authenticate_Fail = new JSONObject();
+                if (msg.equals("Unauthenticated user")) {
+                    Authenticate_Fail.put("info", msg);
+                } else {
+                    Authenticate_Fail.put("info", "the supplied secret is incorrect: " + msg);
+                }
 		Authenticate_Fail.put("command", "AUTHENTICATION_FAIL");
-		Authenticate_Fail.put("info", "the supplied secret is incorrect: " + secret);
 		con.writeMsg(Authenticate_Fail.toJSONString());
-		log.info("AUTHENTICATE_FAIL SENT");
+		log.info("AUTHENTICATE_FAIL SENT -> " + con.getFullAddr());
 	}
 
 	// a function that sends Invalid message to client/connecting server if
@@ -311,7 +319,7 @@ public class Control extends Thread {
 		invalidMsg.put("command", "INVALID_MESSAGE");
 		invalidMsg.put("info", msg);
 		con.writeMsg(invalidMsg.toJSONString());
-		log.info("INVALID_MESSAGE SENT");
+		log.info("INVALID_MESSAGE SENT -> " + con.getFullAddr());
 	}
 
 	// a function that sends server_announce to every server to every other
@@ -333,27 +341,6 @@ public class Control extends Thread {
 			}
 		}
 
-	}
-
-	// a function that converts an ipAddress to a Long number.
-	// reference from
-	// github.com/Albaniusz/java_mkyong/blob/master/src/main/java/com/mkyong/core/JavaBitwiseExample.java
-	public int ipToInt(String ipAddress) {
-		// ipAddressInArray[0] = 192
-		String[] ipAddressInArray = ipAddress.split("\\.");
-
-		int result = 0;
-		for (int i = 0; i < ipAddressInArray.length; i++) {
-			int power = 3 - i;
-			int ip = Integer.parseInt(ipAddressInArray[i]);
-
-			// 1. 192 * 256^3
-			// 2. 168 * 256^2
-			// 3. 1 * 256^1
-			// 4. 2 * 256^0
-			result += ip * Math.pow(256, power);
-		}
-		return result;
 	}
 
 	// Shaoxi
@@ -595,15 +582,15 @@ public class Control extends Thread {
 	// Shaoxi
 	// Check if an object is an instance of String / Number / JSONObject
 	private boolean isString(Object obj) {
-		return obj instanceof String ? true : false;
+		return obj instanceof String;
 	}
 
 	private boolean isNumber(Object obj) {
-		return obj instanceof Number ? true : false;
+		return obj instanceof Number;
 	}
 
 	private boolean isJSON(Object obj) {
-		return obj instanceof JSONObject ? true : false;
+		return obj instanceof JSONObject;
 	}
 
 	// Wei
@@ -679,6 +666,11 @@ public class Control extends Thread {
 			return false;
 		}
 	}
+        
+        private boolean processInvalidMsg(JSONObject msg) {
+                log.error((String) msg.get("info"));
+                return true;
+        }
 
 	@SuppressWarnings("unchecked")
 	private void sendLoginSuccess(Connection con, String msg) {
@@ -714,15 +706,19 @@ public class Control extends Thread {
 
 	// disconnect return true; keep connection return false
 	public boolean processActivityMessage(Connection connect, JSONObject msg) {
+            
+                if(!connect.isClient()){
+                    sendAuthFail(connect, "Unauthenticated user");
+                    return true;
+                }
+                
 		String userName = (String) msg.get("username");
 		String userSecret = (String) msg.get("secret");
 		JSONObject content = (JSONObject) msg.get("activity");
 
 		// Generate New Json Message First
 		JSONObject newMsg = new JSONObject();
-        if(!connect.isClient()){
-            return true;
-        }
+
 		// *****************If user login as anonymous user*******************
 		// *****************activity is allowed to be sent******************
 		if (userName.equals("anonymous") || userName.equals("")) {
