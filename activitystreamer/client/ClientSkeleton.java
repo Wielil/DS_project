@@ -191,7 +191,7 @@ public class ClientSkeleton extends Thread {
                     Settings.setRemoteHostname((String) msgJSON.get("hostname"));
                     Settings.setRemotePort(Integer.parseInt(msgJSON.get("port").toString()));
                     log.info("THIS SERVER HANDLE TOO MUCH LOAD, REDIRECT TO SERVER ->" +
-                            Settings.getRemoteHostname(), Settings.getRemotePort());
+                            Settings.getRemoteHostname() + ":" + Settings.getRemotePort());
                     // starts the protocol afresh.
                     clientSolution = new ClientSkeleton();
                     return true;
