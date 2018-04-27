@@ -31,7 +31,7 @@ public class Control extends Thread {
 																						// password>
 	private static HashMap<String, Integer> lockInfo = new HashMap<>();
 	
-	private static HashMap<String, JSONObject> loadInfo = new HashMap<>(); // <load, Server_Announce>
+	private static HashMap<String, JSONObject> loadInfo = new HashMap<>(); // <serverID, Server_Announce>
 
 	private static String serverId;
 
