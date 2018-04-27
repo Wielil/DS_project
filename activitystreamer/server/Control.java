@@ -89,14 +89,17 @@ public class Control extends Thread {
 		// wei
 		JSONParser parser = new JSONParser();
 		try {
-			// parese msg to JSONObject
+			// parse msg to JSONObject
 			JSONObject JSONmsg = (JSONObject) parser.parse(msg);
 			// get command
-			String command = (String) JSONmsg.get("command");
-			if (command == null) {
-				log.info("No command received. Close connection.");
+			String command;
+			if (isString(JSONmsg.get("command"))) {
+				command = (String) JSONmsg.get("command");
+			} else {
+				log.info("Invalid command. Close connection.");
 				return true;
 			}
+			
 			log.info("Received COMMAND: " + command);
 			switch (command) {
 			/*******************
@@ -133,8 +136,6 @@ public class Control extends Thread {
 				return processActivityMessage(con, JSONmsg);
 			case "ACTIVITY_BROADCAST":
 				return processActivityBroadcast(con, JSONmsg);
-			case "INVALID_MESSAGE":
-				log.info((String) JSONmsg.get("info"));
             /***********
             * client case
             */
@@ -142,9 +143,9 @@ public class Control extends Thread {
 				return processReg(con, JSONmsg);
             case "LOGIN":
                 return processLogin(con, JSONmsg);
-	    default:
-		log.info("DEFAULT:" + (String) JSONmsg.get("info"));
-	        sendInvalidMsg(con, "Unknown command");
+		    default:
+			log.info("DEFAULT:" + (String) JSONmsg.get("info"));
+		        sendInvalidMsg(con, "Unknown command");
 		return true;
 			}
 		} catch (Exception e) {
@@ -580,6 +581,21 @@ public class Control extends Thread {
 
 		return false;
 	}
+	
+	// Shaoxi
+	// Check if an object is an instance of String / Number / JSONObject
+	private boolean isString(Object obj) {
+		return obj instanceof String ? true: false;
+	}
+	
+	private boolean isNumber(Object obj) {
+		return obj instanceof Number ? true: false;
+	}
+	
+	private boolean isJSON(Object obj) {
+		return obj instanceof JSONObject ? true: false;
+	}
+	
 
 	// Wei
 	// Process incoming SERVER_ANNOUNCE
