@@ -161,6 +161,7 @@ public class Control extends Thread {
 	// public synchronized void connectionClosed(Connection con) {
 	public void connectionClosed(Connection con) {
 		// if(!term)
+		if (isClient()) Settings.decLoad();
 		connections.remove(con);
 	}
 
