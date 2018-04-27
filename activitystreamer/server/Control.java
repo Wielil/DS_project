@@ -676,17 +676,22 @@ public class Control extends Thread {
 	public boolean processActivityMessage(Connection connect, JSONObject msg){
 		String userName = (String)msg.get("username");
 		String userSecret = (String)msg.get("secret");
-		//JSONObject content = msg.getJSONObject("activity");
 		JSONObject content = (JSONObject) msg.get("activity");
 
 		//Generate New Json Message First
 		JSONObject newMsg = new JSONObject();
-		newMsg.put("command", "ACTIVITY_BROADCAST");
-		newMsg.put("activity", content);
 
 		//*****************If user login as anonymous user*******************
 		//*****************activity is allowed to be sent******************
 		if(userName.equals("anonymous")|| userName.equals("")){
+
+			//**********Insert authenticate user field**********
+			content.put("authenticated_user","anonymous");
+
+			//**********Put Information to new JSON message**********
+			newMsg.put("command", "ACTIVITY_BROADCAST");
+			newMsg.put("activity", content);
+
 			activityToClient(getConnections(), newMsg);
 			activityToServer(getConnections(), newMsg);
 			return false;
@@ -694,6 +699,13 @@ public class Control extends Thread {
 		//***************If User Login As Normal User***********************
 		//***************Do User's Validation Checking***************
 		else if (isSecretCorrect(userName, userSecret)) {
+			//**********Insert authenticate user field**********
+			content.put("authenticated_user",userName);
+
+			//**********Put Information to new JSON message**********
+			newMsg.put("command", "ACTIVITY_BROADCAST");
+			newMsg.put("activity", content);
+
 			activityToClient(getConnections(), newMsg);
 			activityToServer(getConnections(), newMsg);
 			return false;
