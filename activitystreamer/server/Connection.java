@@ -129,13 +129,13 @@ public class Connection extends Thread {
 	// Shaoxi
 	// Used to set the connection as a client in Control.java
 	void setClient() {
+		// everytime has a new client, load++
+		Settings.incLoad();
 		clientFlag = true;
 	}
 
 	// return if it is a valid client
 	boolean isClient() {
-		// everytime has a new client, load++
-		Settings.incLoad();
 		return clientFlag;
 	}
 
