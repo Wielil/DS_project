@@ -618,8 +618,8 @@ public class Control extends Thread {
 		//////////////////////////////////////////
 		// redirect server_announce
                 for (Connection c : connections) {
-                    if (con.isServer() && !c.equals(con)) {
-                        con.writeMsg(msg.toJSONString());
+                    if (c.isServer() && !c.equals(con)) {
+                        c.writeMsg(msg.toJSONString());
                     }
                 }
 		//////////////////////////////////////////
