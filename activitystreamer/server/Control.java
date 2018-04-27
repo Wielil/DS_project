@@ -523,12 +523,13 @@ public class Control extends Thread {
 		sendLockReq(con, userLock, secretLock);
 
 		// Send LOCK_ALLOWED to the source server
-		JSONObject lockDenied = new JSONObject();
-		lockDenied.put("command", "LOCK_ALLOWED");
-		lockDenied.put("username", userLock);
-		lockDenied.put("secret", secretLock);
-		con.writeMsg(lockDenied.toJSONString());
-		sendLockDenied(con, userLock, secretLock);
+		JSONObject lockAllowed = new JSONObject();
+		lockAllowed.put("command", "LOCK_ALLOWED");
+		lockAllowed.put("username", userLock);
+		lockAllowed.put("secret", secretLock);
+		con.writeMsg(lockAllowed.toJSONString());
+		log.info("LOCK_ALLOWED sent -> " + con.getFullAddr());
+		
 		// Broadcast LOCK_ALLOWED to the other server
 		sendLockAllowed(con, userLock, secretLock);
 
