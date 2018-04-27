@@ -607,7 +607,7 @@ public class Control extends Thread {
 	// Wei
 	// Process incoming SERVER_ANNOUNCE
 	// return: disconnect (true) / keep connection (false)
-	private boolean processSerAnn(Connection con, JSONObject msg) {
+	private boolean processSerAnn(Connection con, JSONObject msg) throws UnknownHostException {
 		// test if the announcement format is correct, if not,
 		// disconnect the connection
 		if (msg.get("id") == null || msg.get("load") == null || msg.get("hostname") == null
@@ -615,6 +615,14 @@ public class Control extends Thread {
 			sendInvalidMsg(con, "Missing fileds in the server announce");
 			return true;
 		}
+		//////////////////////////////////////////
+		// redirect server_announce
+                for (Connection c : connections) {
+                    if (con.isServer() && !c.equals(con)) {
+                        con.writeMsg(msg.toJSONString());
+                    }
+                }
+		//////////////////////////////////////////
 		if (con.isServer()) {
 			loadInfo.put((String) msg.get("id"), msg);
 		}
