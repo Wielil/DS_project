@@ -93,7 +93,6 @@ public class Connection extends Thread {
 			Control.getInstance().connectionClosed(this);
 			// load should be minus 1 if this connection is client -> server
 			// when closing it
-			if (this.isClient()) Settings.decLoad();
 			in.close();
 
 		} catch (IOException | InterruptedException e) {
