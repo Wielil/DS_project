@@ -175,7 +175,7 @@ public class ClientSkeleton extends Thread {
                     
                 case "REDIRECT":
                     remoteHost = (String) msgJSON.get("hostname");
-                    remotePort = Integer.parseInt((String) msgJSON.get("port"));
+                    remotePort = Integer.parseInt(msgJSON.get("port").toString());
                     log.info("THIS SERVER HANDLE TOO MUCH LOAD, REDIRECT TO SERVER %s:%d",
                             remoteHost, remotePort);
                     // starts the protocol afresh.
