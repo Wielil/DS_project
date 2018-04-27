@@ -18,7 +18,7 @@ import activitystreamer.util.Settings;
 import java.net.UnknownHostException;
 
 // wei
-import java.util.Scanner;
+//import java.util.Scanner;
 
 public class ClientSkeleton extends Thread {
     private static final Logger log = LogManager.getLogger();
@@ -57,7 +57,7 @@ public class ClientSkeleton extends Thread {
             outwriter = new PrintWriter(output, true);
             open = true;
             
-            // textFrame = new TextFrame();
+            textFrame = new TextFrame();
             start();
             
         } catch (UnknownHostException e) {
@@ -73,7 +73,7 @@ public class ClientSkeleton extends Thread {
         try {
             // create a scanner to get clients input
             // I assume that clients can only input JSONObj.
-            Scanner sc = new Scanner(System.in);
+            // Scanner sc = new Scanner(System.in);
             String data;
             JSONParser parser = new JSONParser();
             // if a username is provided and no secret is provided,
@@ -96,7 +96,7 @@ public class ClientSkeleton extends Thread {
             while(!term && (data = inreader.readLine()) != null) {
                 term = this.process(data);
                 // getting activity obj from scanner and send it to server.
-/******************** This part is used for scanner
+/******************** This part is used for scanner // MAY HAVE PROBLEM WHEN REGISTER -> LOGIN
 //                String msg = sc.nextLine().trim().replaceAll("\r","").replaceAll("\n","").replaceAll("\t", "");
 //                try {
 //                    JSONObject msgJSON = (JSONObject) parser.parse(msg);
@@ -105,13 +105,6 @@ public class ClientSkeleton extends Thread {
 //                    log.error("invalid JSON object entered into input text field, data not sent");
 //                } 
 *********************/
-                String msg = sc.nextLine().trim().replaceAll("\r","").replaceAll("\n","").replaceAll("\t", "");
-                try {
-                    JSONObject msgJSON = (JSONObject) parser.parse(msg);
-                    sendActivityObject(msgJSON);                                      
-                } catch (ParseException ex) {
-                    log.error("invalid JSON object entered into input text field, data not sent");
-                } 
             }
             
             log.debug("connection closed to " + Settings.socketAddress(socket));
@@ -169,7 +162,7 @@ public class ClientSkeleton extends Thread {
             JSONObject msgJSON = (JSONObject) parser.parse(msg);
             
             // getting the received JSONobj to GUI
-            // textFrame.setOutputText(msgJSON);
+            textFrame.setOutputText(msgJSON);
            
             // get command
             String command = (String) msgJSON.get("command");
