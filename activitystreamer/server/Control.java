@@ -640,6 +640,10 @@ public class Control extends Thread {
 
 		String username = (String) msg.get("username");
 		String secret = (String) msg.get("secret");
+		
+		if (con.isClient()) {
+			sendInvalidMsg(con, "already Login");
+		}
 
 		// check if client wants to log in as anonymous
 		if (username == null || username.equals("anonymous")) {
