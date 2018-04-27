@@ -31,9 +31,9 @@ public class Control extends Thread {
 																						// password>
 	private static HashMap<String, Integer> lockInfo = new HashMap<>();
 	
-	private static HashMap<Integer, JSONObject> loadInfo = new HashMap<>(); // <load, Server_Announce>
+	private static HashMap<String, JSONObject> loadInfo = new HashMap<>(); // <load, Server_Announce>
 
-	private static int serverId;
+	private static String serverId;
 
 	protected static Control control = null;
 
@@ -230,7 +230,8 @@ public class Control extends Thread {
 		// getting server ip
 		try {
 			String ipAddress = InetAddress.getLocalHost().getHostAddress();
-			serverId = ipToInt(ipAddress) + Settings.getLocalPort();
+			int serverIntId = ipToInt(ipAddress) + Settings.getLocalPort();
+			serverId = Integer.toString(serverIntId);
 		} catch (UnknownHostException ex) {
 			java.util.logging.Logger.getLogger(Control.class.getName()).log(Level.SEVERE, null, ex);
 		}
@@ -259,7 +260,7 @@ public class Control extends Thread {
 		listener.setTerm(true);
 	}
 
-	public boolean doActivity(int id) {
+	public boolean doActivity(String id) {
 		try {
 			sendServerAnnounce(id, getConnections());
 		} catch (UnknownHostException ex) {
@@ -314,7 +315,7 @@ public class Control extends Thread {
 	// a function that sends server_announce to every server to every other
 	// server.
 	@SuppressWarnings("unchecked")
-	public void sendServerAnnounce(int id, ArrayList<Connection> connections) throws UnknownHostException {
+	public void sendServerAnnounce(String id, ArrayList<Connection> connections) throws UnknownHostException {
 		JSONObject serverAnnounce = new JSONObject();
 
 		serverAnnounce.put("command", "SERVER_ANNOUNCE");
@@ -609,7 +610,7 @@ public class Control extends Thread {
 			return true;
 		}
 		if (con.isServer()) {
-			loadInfo.put((int) msg.get("load"), msg);
+			loadInfo.put((String) msg.get("id"), msg);
 		}
 		// test if the server is already been authenticated
 		// if yes, return false. if not, return true.
@@ -629,10 +630,12 @@ public class Control extends Thread {
             	sendLoginSuccess(con, username);
 	    // if has other servers' load less than this server's load
 	    // then redirect this con to this server and close connection
-	    for (int keys : loadInfo.keySet()) {
-		    if (keys + 2 <= Settings.getLoad()) {
-			    String hostname = (String) loadInfo.get(keys).get("hostname");
-			    int pornum = (int) loadInfo.get(keys).get("port");
+	    for (String key : loadInfo.keySet()) {
+                    int load = Integer.parseInt(loadInfo.get(key).get("load").toString());
+		    if (load + 2 <= Settings.getLoad()) {
+                            JSONObject serverAnn = loadInfo.get(key);
+			    String hostname = (String) serverAnn.get("hostname");
+			    int pornum = Integer.parseInt(serverAnn.get("port").toString());
 			    sendRedirect(con, hostname, pornum);
 			    return true;
 		    }
