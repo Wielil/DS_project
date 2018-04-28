@@ -761,25 +761,29 @@ public class Control extends Thread {
 		JSONObject newMsg = new JSONObject();
 
 		//First Check whether the connection is valid(is client)
-        if(!connect.isClient()){
-            sendAuthFail(connect, "Unauthenticated user");
-            log.info("Invalid Client. Close connection.");
-            return true;
-        }
-		//Check Activity Object
-		switch(command){
-			case "REGISTER":
-				return processReg(connect, content);
-			case "LOGIN":
-				return processLogin(connect, content);
-			case "LOGOUT":
-				if (userName.equals("anonymous") || isSecretCorrect(userName,userSecret)){
-					allowActivityBroadcast(userName,content,newMsg);
-					activityToClient(getConnections(), newMsg);
-					activityToServer(getConnections(), newMsg);
-				}
-				connectionClosed(connect);
-				return true;
+        	if(!connect.isClient()){
+            		sendAuthFail(connect, "Unauthenticated user");
+            		log.info("Invalid Client. Close connection.");
+            		return true;
+        	}
+		
+		if (command != null) {
+			
+			//Check Activity Object
+			switch(command){
+				case "REGISTER":
+					return processReg(connect, content);
+				case "LOGIN":
+					return processLogin(connect, content);
+				case "LOGOUT":
+					if (userName.equals("anonymous") || isSecretCorrect(userName,userSecret)){
+						allowActivityBroadcast(userName,content,newMsg);
+						activityToClient(getConnections(), newMsg);
+						activityToServer(getConnections(), newMsg);
+					}
+					connectionClosed(connect);
+					return true;
+			}
 		}
 
 		// *****************If user login as anonymous user*******************
