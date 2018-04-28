@@ -219,13 +219,7 @@ public class ClientSkeleton extends Thread {
     public void sendActivityObject(JSONObject activityObj) {
         // wei
         
-        // if aObj contains LOGOUT command, then send logout to server
-        if (activityObj.get("command") != null &&
-                activityObj.get("command").equals( "LOGOUT")) {
-            disconnect();
-            return;
-	}
-        // parse the activityObj to Json String
+	// parse the activityObj to Json String
         String sentJSONString = activityObj.toJSONString();
         
         JSONObject clientMeg = new JSONObject();
@@ -236,6 +230,14 @@ public class ClientSkeleton extends Thread {
         
         log.info("Message: " + sentJSONString + " sent"); 
         writeMsg(clientMeg.toJSONString());
+	    
+	    
+        // if aObj contains LOGOUT command, then send logout to server
+        if (activityObj.get("command") != null &&
+                activityObj.get("command").equals( "LOGOUT")) {
+            disconnect();
+	}
+
         
     }
     
@@ -255,7 +257,7 @@ public class ClientSkeleton extends Thread {
     @SuppressWarnings("unchecked")
     public void sendLogout() {
         JSONObject logoutJSON = new JSONObject();
-        logoutJSON.put("commamd", "LOGOUT");
+        logoutJSON.put("command", "LOGOUT");
         
         this.writeMsg(logoutJSON.toJSONString());
         log.info("LOGOUT REQUEST SENT");
