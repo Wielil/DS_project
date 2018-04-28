@@ -152,6 +152,8 @@ public class Control extends Thread {
 				return processReg(con, JSONmsg);
 			case "LOGIN":
 				return processLogin(con, JSONmsg);
+			case "LOGOUT":
+				return true;
 			default:
 				log.info("RECEIVE Unknown command" + command);
 				sendInvalidMsg(con, "Unknown command");
