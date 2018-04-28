@@ -410,7 +410,7 @@ public class Control extends Thread {
 					userInfo.remove(userReg);
 					return true;
 				} else if (lockInfo.get(userReg) == serverCount) {
-					regRLock.unlock();
+					sendRegSuccess(con, userReg);
 					lockInfo.remove(userReg);
 					return false;
 				}
