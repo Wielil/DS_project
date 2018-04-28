@@ -18,6 +18,7 @@ import java.net.UnknownHostException;
 
 import java.util.HashMap;
 import java.util.logging.Level;
+import java.util.concurrent.locks.*;
 
 public class Control extends Thread {
 	private static final Logger log = LogManager.getLogger();
@@ -29,11 +30,14 @@ public class Control extends Thread {
 
 	private static HashMap<String, String> userInfo = new HashMap<>(); // <username, secret>
 	// password>
-	private static HashMap<String, Integer> lockInfo = new HashMap<>();
-
+	private static HashMap<String, Integer> lockInfo = new HashMap<>(); // <username, lockAllowedCount>
 	private static HashMap<String, JSONObject> loadInfo = new HashMap<>(); // <serverID, Server_Announce>
-
 	private static String serverId;
+
+	// locking mechanism for handling multiple threads accessing the shared storage
+	private static final ReadWriteLock regCountLock = new ReentrantReadWriteLock();
+	private static final Lock regRLock = regCountLock.readLock();
+	private static final Lock regWLock = regCountLock.writeLock();
 
 	protected static Control control = null;
 
@@ -97,61 +101,61 @@ public class Control extends Thread {
 				command = (String) JSONmsg.get("command");
 			} else {
 				log.info("Invalid command. Close connection.");
-                                sendInvalidMsg(con, "Invalid command");
+				sendInvalidMsg(con, "Invalid command");
 				return true;
 			}
 
 			log.info("Received COMMAND: " + command);
 			switch (command) {
-				/*******************
-				 * server case
-				 */
-				case "AUTHENTICATE":
-					log.info("Receiving an Authenticate command.");
-					String secret = (String) JSONmsg.get("secret");
-					if (secret == null) {
-						log.debug("No secret received");
-                                                sendInvalidMsg(con, "No secret provided");
-                                                return true;
-					} else {
-						log.debug("Secret received: " + secret);
-					}
-					if (!Settings.getSecret().equals(secret)) {
-						sendAuthFail(con, secret);
-						return true;
-					} else {
-						con.setServer();
-						return false;
-					}
-				case "AUTHENTICATION_FAIL":
-					log.info((String) JSONmsg.get("info"));
-					log.info("Close connection to the master server");
+			/*******************
+			 * server case
+			 */
+			case "AUTHENTICATE":
+				log.info("Receiving an Authenticate command.");
+				String secret = (String) JSONmsg.get("secret");
+				if (secret == null) {
+					log.debug("No secret received");
+					sendInvalidMsg(con, "No secret provided");
 					return true;
-                                case "INVALID_MESSAGE":
-                                        return processInvalidMsg(JSONmsg);
-				case "SERVER_ANNOUNCE":
-					return processSerAnn(con, JSONmsg);
-				case "LOCK_REQUEST":
-					return processLockReq(con, JSONmsg);
-				case "LOCK_DENIED":
-					return processLockDenied(con, JSONmsg);
-				case "LOCK_ALLOWED":
-					return processLockAllowed(con, JSONmsg);
-				case "ACTIVITY_MESSAGE":
-					return processActivityMessage(con, JSONmsg);
-				case "ACTIVITY_BROADCAST":
-					return processActivityBroadcast(con, JSONmsg);
-				/***********
-				 * client case
-				 */
-				case "REGISTER":
-					return processReg(con, JSONmsg);
-				case "LOGIN":
-					return processLogin(con, JSONmsg);
-				default:
-					log.info("RECEIVE Unknown command" + command);
-					sendInvalidMsg(con, "Unknown command");
+				} else {
+					log.debug("Secret received: " + secret);
+				}
+				if (!Settings.getSecret().equals(secret)) {
+					sendAuthFail(con, secret);
 					return true;
+				} else {
+					con.setServer();
+					return false;
+				}
+			case "AUTHENTICATION_FAIL":
+				log.info((String) JSONmsg.get("info"));
+				log.info("Close connection to the master server");
+				return true;
+			case "INVALID_MESSAGE":
+				return processInvalidMsg(JSONmsg);
+			case "SERVER_ANNOUNCE":
+				return processSerAnn(con, JSONmsg);
+			case "LOCK_REQUEST":
+				return processLockReq(con, JSONmsg);
+			case "LOCK_DENIED":
+				return processLockDenied(con, JSONmsg);
+			case "LOCK_ALLOWED":
+				return processLockAllowed(con, JSONmsg);
+			case "ACTIVITY_MESSAGE":
+				return processActivityMessage(con, JSONmsg);
+			case "ACTIVITY_BROADCAST":
+				return processActivityBroadcast(con, JSONmsg);
+			/***********
+			 * client case
+			 */
+			case "REGISTER":
+				return processReg(con, JSONmsg);
+			case "LOGIN":
+				return processLogin(con, JSONmsg);
+			default:
+				log.info("RECEIVE Unknown command" + command);
+				sendInvalidMsg(con, "Unknown command");
+				return true;
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -165,7 +169,8 @@ public class Control extends Thread {
 	 */
 	// public synchronized void connectionClosed(Connection con) {
 	public void connectionClosed(Connection con) {
-		if (con.isClient()) Settings.decLoad();
+		if (con.isClient())
+			Settings.decLoad();
 		connections.remove(con);
 	}
 
@@ -300,12 +305,12 @@ public class Control extends Thread {
 	// a function that sends Authenticate_fail Json obj if secret is incorrect
 	@SuppressWarnings("unchecked")
 	public void sendAuthFail(Connection con, String msg) {
-                JSONObject Authenticate_Fail = new JSONObject();
-                if (msg.equals("Unauthenticated user")) {
-                    Authenticate_Fail.put("info", msg);
-                } else {
-                    Authenticate_Fail.put("info", "the supplied secret is incorrect: " + msg);
-                }
+		JSONObject Authenticate_Fail = new JSONObject();
+		if (msg.equals("Unauthenticated user")) {
+			Authenticate_Fail.put("info", msg);
+		} else {
+			Authenticate_Fail.put("info", "the supplied secret is incorrect: " + msg);
+		}
 		Authenticate_Fail.put("command", "AUTHENTICATION_FAIL");
 		con.writeMsg(Authenticate_Fail.toJSONString());
 		log.info("AUTHENTICATE_FAIL SENT -> " + con.getFullAddr());
@@ -351,11 +356,17 @@ public class Control extends Thread {
 				return true;
 			}
 		}
-		for (String key : lockInfo.keySet()) {
-			if (key.equals(user)) {
-				return true;
+		regRLock.lock();
+		try {
+			for (String key : lockInfo.keySet()) {
+				if (key.equals(user)) {
+					return true;
+				}
 			}
+		} finally {
+			regRLock.unlock();
 		}
+
 		return false;
 	}
 
@@ -392,15 +403,28 @@ public class Control extends Thread {
 
 		// 3. Receive LOCK_ALLOWED / LOCK_DENIED to confirm
 		while (true) {
-			if (lockInfo.get(userReg) == null) {
-				sendRegFailed(con, userReg);
-				userInfo.remove(userReg);
-				return true;
-			} else if (lockInfo.get(userReg) == serverCount) {
-				sendRegSuccess(con, userReg);
-				lockInfo.remove(userReg);
-				return false;
+			regWLock.lock();
+			try {
+				if (lockInfo.get(userReg) == null) {
+					// regRLock.unlock();
+					sendRegFailed(con, userReg);
+					userInfo.remove(userReg);
+					return true;
+				} else if (lockInfo.get(userReg) == serverCount) {
+					// regRLock.unlock();
+					sendRegSuccess(con, userReg);
+					// regWLock.lock();
+					// try {
+					lockInfo.remove(userReg);
+					// } finally {
+					// regWLock.unlock();
+					// }
+					return false;
+				}
+			} finally {
+				regWLock.unlock();
 			}
+
 		}
 	}
 
@@ -542,10 +566,17 @@ public class Control extends Thread {
 			con.writeMsg(invMsg.toJSONString());
 			return false;
 		}
-		if (lockInfo.get(userLock) != null) {
-			lockInfo.put(userLock, lockInfo.get(userLock) + 1);
+
+		regWLock.lock();
+		try {
+			if (lockInfo.get(userLock) != null) {
+				lockInfo.put(userLock, lockInfo.get(userLock) + 1);
+			}
+		} finally {
+			regWLock.unlock();
 		}
-		sendLockAllowed(con,userLock,secretLock);
+
+		sendLockAllowed(con, userLock, secretLock);
 		return false;
 	}
 
@@ -569,11 +600,17 @@ public class Control extends Thread {
 			return false;
 		}
 
-		// Check if that user name is on record
-		// if yes, remove it from local storage
-		if (userInfo.get(userLock) != null) {
-			userInfo.remove(userLock);
+		regWLock.lock();
+		try {
+			// Check if that user name is on record
+			// if yes, remove it from local storage
+			if (userInfo.get(userLock) != null) {
+				userInfo.remove(userLock);
+			}
+		} finally {
+			regWLock.unlock();
 		}
+
 		sendLockDenied(con, userLock, secretLock);
 
 		return false;
@@ -627,14 +664,14 @@ public class Control extends Thread {
 
 		String username = (String) msg.get("username");
 		String secret = (String) msg.get("secret");
-		
+
 		if (con.isClient()) {
 			sendInvalidMsg(con, "already Login");
 		}
 
 		// check if client wants to log in as anonymous
 		if (username == null || username.equals("anonymous")) {
-                        log.info("SENDING LOGIN SUCCESS");
+			log.info("SENDING LOGIN SUCCESS");
 			sendLoginSuccess(con, username);
 			// if has other servers' load less than this server's load
 			// then redirect this con to this server and close connection
@@ -644,7 +681,7 @@ public class Control extends Thread {
 					JSONObject serverAnn = loadInfo.get(key);
 					String hostname = (String) serverAnn.get("hostname");
 					int pornum = Integer.parseInt(serverAnn.get("port").toString());
-                                        log.info("SENDING REDIRECT");
+					log.info("SENDING REDIRECT");
 					sendRedirect(con, hostname, pornum);
 					return true;
 				}
@@ -660,32 +697,32 @@ public class Control extends Thread {
 
 		// check if the secret is correct
 		if (userInfo.get(username) == null || !((String) userInfo.get(username)).equals(secret)) {
-                        log.info("SENDING LOGIN Fail");
+			log.info("SENDING LOGIN Fail");
 			sendLoginFailed(con, username);
 			return true;
 		} else {
-                        log.info("SENDING LOGIN SUCCESS");
+			log.info("SENDING LOGIN SUCCESS");
 			sendLoginSuccess(con, username);
-                        for (String key : loadInfo.keySet()) {
+			for (String key : loadInfo.keySet()) {
 				int load = Integer.parseInt(loadInfo.get(key).get("load").toString());
 				if (load + 2 <= Settings.getLoad()) {
 					JSONObject serverAnn = loadInfo.get(key);
 					String hostname = (String) serverAnn.get("hostname");
 					int pornum = Integer.parseInt(serverAnn.get("port").toString());
-                                        log.info("SENDING REDIRECT");
+					log.info("SENDING REDIRECT");
 					sendRedirect(con, hostname, pornum);
 					return true;
 				}
 			}
-		con.setClient();
-		return false;
+			con.setClient();
+			return false;
 		}
 	}
-        
-        private boolean processInvalidMsg(JSONObject msg) {
-                log.error((String) msg.get("info"));
-                return true;
-        }
+
+	private boolean processInvalidMsg(JSONObject msg) {
+		log.error((String) msg.get("info"));
+		return true;
+	}
 
 	@SuppressWarnings("unchecked")
 	private void sendLoginSuccess(Connection con, String msg) {
@@ -721,12 +758,12 @@ public class Control extends Thread {
 
 	// disconnect return true; keep connection return false
 	public boolean processActivityMessage(Connection connect, JSONObject msg) {
-            
-                if(!connect.isClient()){
-                    sendAuthFail(connect, "Unauthenticated user");
-                    return true;
-                }
-                
+
+		if (!connect.isClient()) {
+			sendAuthFail(connect, "Unauthenticated user");
+			return true;
+		}
+
 		String userName = (String) msg.get("username");
 		String userSecret = (String) msg.get("secret");
 		JSONObject content = (JSONObject) msg.get("activity");
