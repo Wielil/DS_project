@@ -110,7 +110,6 @@ public class ClientSkeleton extends Thread {
             log.debug("connection closed to " + Settings.socketAddress(socket));
             input.close();
             open =false;
-            System.exit(0);
             
         } catch (IOException e) {
             log.error("connection " + Settings.socketAddress((socket)) + " closed with exception: " + e);
@@ -186,8 +185,9 @@ public class ClientSkeleton extends Thread {
                     log.info("THIS SERVER HANDLE TOO MUCH LOAD, REDIRECT TO SERVER ->" +
                             Settings.getRemoteHostname() + ":" + Settings.getRemotePort());
                     // starts the protocol afresh.
+                    interrupt();
                     clientSolution = new ClientSkeleton();
-                    return true;
+                    return false;
                     
                 case "REGISTER_FAILED":
                     log.info((String) msgJSON.get("info"));
@@ -219,7 +219,7 @@ public class ClientSkeleton extends Thread {
     public void sendActivityObject(JSONObject activityObj) {
         // wei
         
-	// parse the activityObj to Json String
+        // parse the activityObj to Json String
         String sentJSONString = activityObj.toJSONString();
         
         JSONObject clientMeg = new JSONObject();
@@ -230,14 +230,11 @@ public class ClientSkeleton extends Thread {
         
         log.info("Message: " + sentJSONString + " sent"); 
         writeMsg(clientMeg.toJSONString());
-	    
-	    
         // if aObj contains LOGOUT command, then send logout to server
         if (activityObj.get("command") != null &&
                 activityObj.get("command").equals( "LOGOUT")) {
             disconnect();
 	}
-
         
     }
     
