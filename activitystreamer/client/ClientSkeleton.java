@@ -187,7 +187,7 @@ public class ClientSkeleton extends Thread {
                     // starts the protocol afresh.
                     interrupt();
                     clientSolution = new ClientSkeleton();
-                    return false;
+                    return true;
                     
                 case "REGISTER_FAILED":
                     log.info((String) msgJSON.get("info"));
