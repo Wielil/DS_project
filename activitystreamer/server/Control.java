@@ -406,19 +406,19 @@ public class Control extends Thread {
 			regWLock.lock();
 			try {
 				if (lockInfo.get(userReg) == null) {
-					// regRLock.unlock();
+					regRLock.unlock();
 					sendRegFailed(con, userReg);
 					userInfo.remove(userReg);
 					return true;
 				} else if (lockInfo.get(userReg) == serverCount) {
-					// regRLock.unlock();
+					regRLock.unlock();
 					sendRegSuccess(con, userReg);
-					// regWLock.lock();
-					// try {
-					lockInfo.remove(userReg);
-					// } finally {
-					// regWLock.unlock();
-					// }
+					regWLock.lock();
+					try {
+						lockInfo.remove(userReg);
+					} finally {
+						regWLock.unlock();
+					}
 					return false;
 				}
 			} finally {
