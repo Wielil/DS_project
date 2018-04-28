@@ -752,53 +752,62 @@ public class Control extends Thread {
 	// disconnect return true; keep connection return false
 	public boolean processActivityMessage(Connection connect, JSONObject msg) {
 
-		if (!connect.isClient()) {
-			sendAuthFail(connect, "Unauthenticated user");
-			return true;
-		}
-
+		//Variables for this function
 		String userName = (String) msg.get("username");
 		String userSecret = (String) msg.get("secret");
 		JSONObject content = (JSONObject) msg.get("activity");
-
-		// Generate New Json Message First
+		String command = (String) content.get("command");
+		// Generate A New Json Message to Broadcast
 		JSONObject newMsg = new JSONObject();
 
+		//First Check whether the connection is valid(is client)
+        if(!connect.isClient()){
+            sendAuthFail(connect, "Unauthenticated user");
+            log.info("Invalid Client. Close connection.");
+            return true;
+        }
+		//Check Activity Object
+		switch(command){
+			case "REGISTER":
+				return processReg(connect, content);
+			case "LOGIN":
+				return processLogin(connect, content);
+			case "LOGOUT":
+				if (userName.equals("anonymous") || isSecretCorrect(userName,userSecret)){
+					allowActivityBroadcast(userName,content,newMsg);
+					activityToClient(getConnections(), newMsg);
+					activityToServer(getConnections(), newMsg);
+				}
+				connectionClosed(connect);
+				return true;
+		}
+
 		// *****************If user login as anonymous user*******************
+		// ******************If user name match user secret*******************
 		// *****************activity is allowed to be sent******************
-		if (userName.equals("anonymous") || userName.equals("")) {
-
-			// **********Insert authenticate user field**********
-			content.put("authenticated_user", "anonymous");
-
-			// **********Put Information to new JSON message**********
-			newMsg.put("command", "ACTIVITY_BROADCAST");
-			newMsg.put("activity", content);
-
+		if (userName.equals("anonymous") || isSecretCorrect(userName,userSecret)) {
+			allowActivityBroadcast(userName,content,newMsg);
 			activityToClient(getConnections(), newMsg);
 			activityToServer(getConnections(), newMsg);
 			return false;
 		}
-		// ***************If User Login As Normal User***********************
-		// ***************Do User's Validation Checking***************
-		else if (isSecretCorrect(userName, userSecret)) {
-			// **********Insert authenticate user field**********
-			content.put("authenticated_user", userName);
-
-			// **********Put Information to new JSON message**********
-			newMsg.put("command", "ACTIVITY_BROADCAST");
-			newMsg.put("activity", content);
-
-			activityToClient(getConnections(), newMsg);
-			activityToServer(getConnections(), newMsg);
-			return false;
-		} else if (!isSecretCorrect(userName, userSecret)) {
+		else if (!isSecretCorrect(userName, userSecret)) {
 			sendAuthFail(connect, userSecret);
 			return true;
 		} else {
 			sendInvalidMsg(connect, "unrecognized format of activity message");
 			return true;
 		}
+	}
+	/***************** Code By Leo ********************/
+	//Be Called when Activity Broadcast is allowed to be sent
+	//Create the JSON object for broadcast
+	public void allowActivityBroadcast(String userName, JSONObject content, JSONObject newMsg){
+		// **********Insert authenticate user field**********
+		content.put("authenticated_user", userName);
+		// **********Put Information to new JSON message**********
+		newMsg.put("command", "ACTIVITY_BROADCAST");
+		newMsg.put("activity", content);
 	}
 
 	/***************** Code By Leo ********************/
@@ -820,7 +829,7 @@ public class Control extends Thread {
 		for (Connection c : getConnections()) {
 			if (c.equals(connect)) {
 				continue;
-			} else if (c.isServer()) {
+			} else if (c.isServer()||c.isClient()) {
 				c.writeMsg(msg.toJSONString());
 				log.info("ACTIVITY_BROADCAST SENT ->" + c.getFullAddr());
 			}
