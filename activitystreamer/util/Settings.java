@@ -18,7 +18,11 @@ public class Settings {
 	private static String secret = null;
 	private static String username = "anonymous";
 	private static int load = 0; // the number of clients connected to the server.
-
+	private static boolean authenticate = true;
+	
+	public static boolean getAuthenticate() {
+            	return authenticate;
+        }
 	
 	public static int getLocalPort() {
 		return localPort;
