@@ -3,6 +3,8 @@ package activitystreamer.server;
 import java.io.IOException;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,6 +34,7 @@ public class Control extends Thread {
     // password>
     private static HashMap<String, Integer> lockInfo = new HashMap<>(); // <username, lockAllowedCount>
     private static HashMap<String, JSONObject> loadInfo = new HashMap<>(); // <serverID, Server_Announce>
+    private static HashMap<Connection, Date> clientLogTime = new HashMap<>(); // <connection, connection_setuptime>
     private static String serverId;
 
     // locking mechanism for handling multiple threads accessing the shared storage
@@ -799,7 +802,15 @@ public class Control extends Thread {
             return false;
         }
     }
-
+                               
+    /****************Code by Leo*****************/
+    /***********Project 2 Modification***********/
+    /********recond the time a client login******/
+    private void setClientLoginTime(Connection con){
+        Date curTime = new Date();
+        clientLogTime.put(con,curTime);
+    }
+                              
     private boolean processInvalidMsg(JSONObject msg) {
         log.error((String) msg.get("info"));
         return true;
@@ -811,6 +822,7 @@ public class Control extends Thread {
         logMsg.put("command", "LOGIN_SUCCESS");
         logMsg.put("info", "logged in as user " + msg);
         con.writeMsg(logMsg.toJSONString());
+        setClientLoginTime(con);
     }
 
     @SuppressWarnings("unchecked")
@@ -838,13 +850,17 @@ public class Control extends Thread {
     // If invalid, send authentication failed message to user
 
     // disconnect return true; keep connection return false
-    public boolean processActivityMessage(Connection connect, JSONObject msg) {
+    private boolean processActivityMessage(Connection connect, JSONObject msg) {
 
         // Variables for this function
         String userName = (String) msg.get("username");
         String userSecret = (String) msg.get("secret");
         JSONObject content = (JSONObject) msg.get("activity");
         String command = (String) content.get("command");
+        //Timestamp sqlTimestamp = new Timestamp(System.currentTimeMillis());
+        SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
+        Date curTime = new Date();
+        String timeString = dateFormat.format(curTime);
         // Generate A New Json Message to Broadcast
         JSONObject newMsg = new JSONObject();
 
@@ -865,8 +881,8 @@ public class Control extends Thread {
                 return processLogin(connect, content);
             case "LOGOUT":
                 if (userName.equals("anonymous") || isSecretCorrect(userName, userSecret)) {
-                    allowActivityBroadcast(userName, content, newMsg);
-                    activityToClient(getConnections(), newMsg);
+                    allowActivityBroadcast(userName, content, timeString, newMsg);
+                    activityToClient(getConnections(), curTime, newMsg);
                     activityToServer(getConnections(), newMsg);
                 }
                 connectionClosed(connect);
@@ -878,8 +894,8 @@ public class Control extends Thread {
         // ******************If user name match user secret*******************
         // *****************activity is allowed to be sent******************
         if (userName.equals("anonymous") || isSecretCorrect(userName, userSecret)) {
-            allowActivityBroadcast(userName, content, newMsg);
-            activityToClient(getConnections(), newMsg);
+            allowActivityBroadcast(userName, content,timeString, newMsg);
+            activityToClient(getConnections(), curTime, newMsg);
             activityToServer(getConnections(), newMsg);
             return false;
         } else if (!isSecretCorrect(userName, userSecret)) {
@@ -894,14 +910,16 @@ public class Control extends Thread {
     /***************** Code By Leo ********************/
     // Be Called when Activity Broadcast is allowed to be sent
     // Create the JSON object for broadcast
-    public void allowActivityBroadcast(String userName, JSONObject content, JSONObject newMsg) {
+    private void allowActivityBroadcast(String userName, JSONObject content,
+        String receivedTime, JSONObject newMsg) {
         // **********Insert authenticate user field**********
         content.put("authenticated_user", userName);
+        newMsg.put("message_time",receivedTime);
         // **********Put Information to new JSON message**********
         newMsg.put("command", "ACTIVITY_BROADCAST");
         newMsg.put("activity", content);
     }
-
+    
     /***************** Code By Leo ********************/
     // Process Activity Broadcast after Received
 
@@ -910,18 +928,28 @@ public class Control extends Thread {
     // Otherwise, broadcast the JSON message it have received to all other server
 
     // disconnect return true; keep connection return false
-    public boolean processActivityBroadcast(Connection connect, JSONObject msg) {
-
+    private boolean processActivityBroadcast(Connection connect, JSONObject msg) {
+        String timeString = (String) msg.get("message_time");
+        SimpleDateFormat timeFormat = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
+        Date msgTime = timeFormat.parse(timeString);
         // Check server is authenticate
         if (!connect.isServer()) {
             sendInvalidMsg(connect, "Unauthenticate Server Connection");
             return true;
         }
-
+    //More Consideration need to be take.
+    //First Read the msg and obtain the Msg time
+    //Change the String to simple date format.
         for (Connection c : getConnections()) {
             if (c.equals(connect)) {
                 continue;
-            } else if (c.isServer() || c.isClient()) {
+            }
+            else if (c.isServer()) {
+                c.writeMsg(msg.toJSONString());
+                log.info("ACTIVITY_BROADCAST SENT ->" + c.getFullAddr());
+            }
+            /*****************Project 2 Modification*******************/
+            else if (c.isClient() && ! clientLogTime.get(con).after(msgTime)) {
                 c.writeMsg(msg.toJSONString());
                 log.info("ACTIVITY_BROADCAST SENT ->" + c.getFullAddr());
             }
@@ -934,9 +962,9 @@ public class Control extends Thread {
 
     // Find all client connections
     // Then send message to all client
-    public void activityToClient(ArrayList<Connection> connections, JSONObject msg) {
+    private void activityToClient(ArrayList<Connection> connections, Date curTime, JSONObject msg) {
         for (Connection con : connections) {
-            if (con.isClient()) {
+            if (con.isClient() && !clientLogTime.get(con).after(curTime)) {
                 con.writeMsg(msg.toJSONString());
             }
         }
@@ -947,7 +975,7 @@ public class Control extends Thread {
 
     // Find all server connections
     // Then send message to all other server
-    public void activityToServer(ArrayList<Connection> connections, JSONObject msg) {
+    private void activityToServer(ArrayList<Connection> connections, JSONObject msg) {
         for (Connection con : connections) {
             if (con.isServer()) {
                 con.writeMsg(msg.toJSONString());
