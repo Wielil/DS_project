@@ -215,7 +215,7 @@ public class Control extends Thread {
         Connection c = new Connection(s);
         c.setServer(true); // all outgoing connections are server connections
         // if connecting to backup server, update a new backup server
-        if (connections.get(0).isClosed()) {
+        if (!connections.isEmpty() && connections.get(0).isClosed()) {
             connections.set(0, c);
         } else {
             connections.add(c);
@@ -722,7 +722,7 @@ public class Control extends Thread {
         Settings.setAuthenticate((boolean) msg.get("flag"));
         // setting backup server
         Settings.setRemoteHostname((String) msg.get("remoteHost"));
-        Settings.setRemotePort((Integer) msg.get("remotePort"));
+        Settings.setRemotePort(Integer.parseInt(msg.get("remotePort").toString());
         return false;
     }
 
