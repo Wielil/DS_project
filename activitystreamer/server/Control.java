@@ -83,9 +83,10 @@ public class Control extends Thread {
             return true;
         }
     }
+    
 
     /*
-     * Processing incoming messages from the connection. Return true if the
+     * runing incoming messages from the connection. Return true if the
      * connection should close.
      */
     // public synchronized boolean process(Connection con, String msg) {
@@ -124,6 +125,7 @@ public class Control extends Thread {
                     sendAuthFail(con, secret);
                     return true;
                 } else {
+                    sendAuthSuccess(con, userInfo);
                     con.setServer();
                     return false;
                 }
@@ -131,6 +133,8 @@ public class Control extends Thread {
                 log.info((String) JSONmsg.get("info"));
                 log.info("Close connection to the master server");
                 return true;
+            case "AUTHENTICATION_SUCCESS":
+                return processAuthSuccess(con, JSONmsg);
             case "INVALID_MESSAGE":
                 return processInvalidMsg(JSONmsg);
             case "SERVER_ANNOUNCE":
@@ -149,7 +153,12 @@ public class Control extends Thread {
              * client case
              */
             case "REGISTER":
-                return processReg(con, JSONmsg);
+            // dont allow user to register before authenticating
+                if(Settings.getAuthenticate()) {
+                    return processReg(con, JSONmsg);
+                } else {
+                    sendInvalidMsg(con, "Server not authenticated yet");
+                }
             case "LOGIN":
                 return processLogin(con, JSONmsg);
             case "LOGOUT":
@@ -185,6 +194,11 @@ public class Control extends Thread {
     public Connection incomingConnection(Socket s) throws IOException {
         log.debug("incomming connection: " + Settings.socketAddress(s));
         Connection c = new Connection(s);
+        // if no connection here, select the first server comes in as backup server
+        if (connections.isEmpty()) {
+            Settings.setRemoteHostname(c.getRemoteHost());
+            Settings.setRemotePort(c.getRemotePort());
+        }
         connections.add(c);
         return c;
 
@@ -200,7 +214,12 @@ public class Control extends Thread {
         log.debug("outgoing connection: " + Settings.socketAddress(s));
         Connection c = new Connection(s);
         c.setServer(); // all outgoing connections are server connections
-        connections.add(c);
+        // if connecting to backup server, update a new backup server
+        if (connections.get(0).isClosed()) {
+            connections.set(0, c);
+        } else {
+            connections.add(c);
+        }
         // wei
         // sending authenticate to authenticate the server
         sendAuthenticate(c);
@@ -294,6 +313,8 @@ public class Control extends Thread {
     // a function that sends AUTHENTICATE JSON object with this connection
     @SuppressWarnings("unchecked")
     public void sendAuthenticate(Connection con) {
+        // set authenticate to false before authentication success
+        Settings.setAuthenticate(false);
         // create an authenticate json obj
         JSONObject Authenticate = new JSONObject();
         Authenticate.put("command", "AUTHENTICATE");
@@ -302,6 +323,20 @@ public class Control extends Thread {
         }
         con.writeMsg(Authenticate.toJSONString());
         log.info("AUTHENTICATE SENT -> " + con.getFullAddr());
+    }
+    
+    @SuppressWarnings("unchecked")
+    public void sendAuthSuccess(Connection con, HashMap<String, String> userInfo) {
+        JSONObject Authenticate_Success = new JSONObject();
+        Authenticate_Success.put("command", "AUTHENTICATION_SUCCESS");
+        Authenticate_Success.put("userInfo", userInfo);
+        Authenticate_Success.put("flag", true);
+        Connection masterCon = connections.get(0);
+        // sending masterCon information to my child server
+        Authenticate_Success.put("remoteHost", masterCon.getRemoteHost());
+        Authenticate_Success.put("remotePort", masterCon.getRemotePort());
+        con.writeMsg(Authenticate_Success.toJSONString());
+        log.info("AUTHENTICATE_SUCCESS SENT -> " + con.getFullAddr());
     }
 
     // a function that sends Authenticate_fail Json obj if secret is incorrect
@@ -654,6 +689,15 @@ public class Control extends Thread {
         // if yes, return false. if not, return true.
         return !con.isServer();
     }
+    
+    private boolean processAuthSuccess(Connection con, JSONObject msg) {
+        userInfo = (HashMap<String, String>) msg.get("userInfo");
+        Settings.setAuthenticate((boolean) msg.get("flag"));
+        // setting backup server
+        Settings.setRemoteHostname((String) msg.get("remoteHost"));
+        Settings.setRemotePort((Integer) msg.get("remotePort"));
+        return false;
+    }
 
     // Process incoming LOGIN command from client
     // return: close connection (true) / keep connection (false)
@@ -673,9 +717,21 @@ public class Control extends Thread {
             sendLoginSuccess(con, username);
             // if has other servers' load less than this server's load
             // then redirect this con to this server and close connection
+            int smallestLoad = Settings.getLoad();
+            int counter1 = 0;
+            int flag = 0;
             for (String key : loadInfo.keySet()) {
+                counter1++;
                 int load = Integer.parseInt(loadInfo.get(key).get("load").toString());
-                if (load + 2 <= Settings.getLoad()) {
+                if (load < smallestLoad) {
+                    flag = counter1; 
+                    smallestLoad = load;
+                }
+            }
+            int counter2 = 0;
+            for (String key : loadInfo.keySet()) {
+                counter2++;
+                if (counter2 == flag) {
                     JSONObject serverAnn = loadInfo.get(key);
                     String hostname = (String) serverAnn.get("hostname");
                     int pornum = Integer.parseInt(serverAnn.get("port").toString());
