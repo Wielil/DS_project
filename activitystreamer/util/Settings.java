@@ -24,6 +24,10 @@ public class Settings {
             	return authenticate;
         }
 	
+	public static void setAuthenticate(boolean flag) {
+            	authenticate = flag;
+        }
+	
 	public static int getLocalPort() {
 		return localPort;
 	}
