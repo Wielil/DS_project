@@ -29,6 +29,7 @@ public class Connection extends Thread {
 	private boolean term = false;
 	private boolean serverFlag = false; // Indicate a connection is a valid server (default: false)
 	private boolean clientFlag = false; // Indicate a connection is a valid client (default: false)
+        private boolean closedFlag = false; // Indicate a connection is closed
 
 	Connection(Socket socket) throws IOException {
 		in = new DataInputStream(socket.getInputStream());
@@ -90,14 +91,24 @@ public class Connection extends Thread {
 			}
 
 			log.debug("connection closed to " + Settings.socketAddress(socket));
-			Control.getInstance().connectionClosed(this);
-			// load should be minus 1 if this connection is client -> server
-			// when closing it
+                        
+                        // remove the connection from connections list after broadcasting
+			//Control.getInstance().connectionClosed(this);
+                        this.setClosed();
+                        
+                        // if this connection is at index 0 of connection list
+                        // establish an initialConnection to backupserver
+                        // else, close it without removing it from ths list
+                        if(Control.getInstance().getConnections().indexOf(this) == 0) {
+                            Control.getInstance().initiateConnection();
+                        }
+                        
+                        
 			in.close();
 
 		} catch (IOException | InterruptedException e) {
 			log.error("connection " + Settings.socketAddress(socket) + " closed with exception: " + e);
-			Control.getInstance().connectionClosed(this);
+			Control.getInstance().connectionClosed(this);                      
 		}
 		open = false;
 	}
@@ -128,8 +139,7 @@ public class Connection extends Thread {
 	// Shaoxi
 	// Used to set the connection as a client in Control.java
 	void setClient() {
-		// everytime has a new client, load++
-		Settings.incLoad();
+                Settings.incLoad();
 		clientFlag = true;
 	}
 
@@ -137,10 +147,29 @@ public class Connection extends Thread {
 	boolean isClient() {
 		return clientFlag;
 	}
+        
+        // Wei
+        // Used to set the connection to be closed
+        void setClosed() {
+                closedFlag = true;
+        }
+        
+        // return if it is closed
+        boolean isClosed() {
+                return closedFlag;
+        }
 
 	// Get the full address of the connection
 	// return: "hostname:port"
 	public String getFullAddr() {
 		return getSocket().getInetAddress() + ":" + getSocket().getPort();
 	}
+        
+        public String getRemoteHost() {
+                return getSocket().getInetAddress().toString();
+        }
+        
+        public int getRemotePort() {
+                return getSocket().getPort();
+        }
 }
