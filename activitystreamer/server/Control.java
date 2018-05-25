@@ -126,7 +126,7 @@ public class Control extends Thread {
                     return true;
                 } else {
                     sendAuthSuccess(con, userInfo);
-                    con.setServer();
+                    con.setServer(true);
                     return false;
                 }
             case "AUTHENTICATION_FAIL":
@@ -213,7 +213,7 @@ public class Control extends Thread {
     public Connection outgoingConnection(Socket s) throws IOException {
         log.debug("outgoing connection: " + Settings.socketAddress(s));
         Connection c = new Connection(s);
-        c.setServer(); // all outgoing connections are server connections
+        c.setServer(true); // all outgoing connections are server connections
         // if connecting to backup server, update a new backup server
         if (connections.get(0).isClosed()) {
             connections.set(0, c);
@@ -445,7 +445,21 @@ public class Control extends Thread {
             regWLock.lock();
             try {
                 if (lockInfo.get(userReg) == null) {
-                    sendRegFailed(con, userReg);
+                	for (Connection c : connections) {
+                		// REG interrupted due to a server crashed
+                		if (c.isClosed()) {
+                			resMsg.put("command", "INVALID_MESSAGE");
+                			resMsg.put("info", "Registeration was interrupted. Please try again later.");
+                			con.writeMsg(resMsg.toJSONString());
+                			
+                			sendLockDenied(con, userReg, secretReg);
+                            userInfo.remove(userReg);
+                            return true;
+                		}
+                	}
+                	
+                	// Normal REG_FAILED
+                	sendRegFailed(con, userReg);
                     sendLockDenied(con, userReg, secretReg);
                     userInfo.remove(userReg);
                     return true;
@@ -647,6 +661,19 @@ public class Control extends Thread {
         sendLockDenied(con, userLock, secretLock);
 
         return false;
+    }
+    
+    // Shaoxi
+    // Remove all lock info for registeration when any server connection is lost
+    void stopRegLock() {
+    	regWLock.lock();
+        try {
+            if (lockInfo.size() > 0) {
+                lockInfo.clear();
+            }
+        } finally {
+            regWLock.unlock();
+        }
     }
 
     // Shaoxi
