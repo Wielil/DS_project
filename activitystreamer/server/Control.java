@@ -733,7 +733,7 @@ public class Control extends Thread {
         Settings.setAuthenticate((boolean) msg.get("flag"));
         // setting backup server
         Settings.setRemoteHostname((String) msg.get("remoteHost"));
-        Settings.setRemotePort(Integer.parseInt(msg.get("remotePort").toString());
+        Settings.setRemotePort(Integer.parseInt(msg.get("remotePort").toString()));
         return false;
     }
 
@@ -932,7 +932,7 @@ public class Control extends Thread {
     /************** Check Connections ****************/
     private boolean checkConnectionClosed(ArrayList<Connection> connections){
         for(Connection con : connections){
-            if(con.isClosed){
+            if(con.isClosed()){
                 return true;
             }
         }
@@ -942,7 +942,7 @@ public class Control extends Thread {
     /************** Delete Connections ****************/
     private void deleteConnectionClosed(ArrayList<Connection> connections){
         for(Connection con : connections){
-            if(con.isClosed){
+            if(con.isClosed()){
                 connections.remove(con);
             }
         }
