@@ -19,6 +19,7 @@ import java.net.InetAddress; // getting ip address to compute server id.
 import java.net.UnknownHostException;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.logging.Level;
 import java.util.concurrent.locks.*;
 
@@ -758,7 +759,7 @@ public class Control extends Thread {
     private boolean processBackUpSer(Connection con, JSONObject msg) {
         String hostname = ((String) msg.get("hostname")).replace("\\", "");
         hostname.replace("/", "");
-	con.setBackupHost((String) msg.get("hostname"));
+	con.setBackupHost(hostname);
 	con.setBackupPort(Integer.parseInt(msg.get("port").toString()));
 	for (Connection c : connections) {
 		if (c.isServer() && !c.equals(con)) {
@@ -972,9 +973,11 @@ public class Control extends Thread {
     /***************** Code By Leo ********************/
     /************** Delete Connections ****************/
     private void deleteConnectionClosed(ArrayList<Connection> connections){
-        for(Connection con : connections){
-            if(con.isClosed()){
-                connections.remove(con);
+        Iterator<Connection> iter = connections.iterator();
+        while(iter.hasNext()){
+            Connection nextCon = iter.next();
+            if(nextCon.isClosed()){
+                iter.remove();
             }
         }
     }
