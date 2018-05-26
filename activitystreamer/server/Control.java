@@ -929,6 +929,38 @@ public class Control extends Thread {
     }
     
     /***************** Code By Leo ********************/
+    /************** Check Connections ****************/
+    private boolean checkConnectionClosed(ArrayList<Connection> connections){
+        for(Connection con : connections){
+            if(con.isClosed){
+                return true;
+            }
+        }
+        return false;
+    }
+    /***************** Code By Leo ********************/
+    /************** Delete Connections ****************/
+    private void deleteConnectionClosed(ArrayList<Connection> connections){
+        for(Connection con : connections){
+            if(con.isClosed){
+                connections.remove(con);
+            }
+        }
+    }
+    /***************** Code By Leo ********************/
+    /************** Handle disConnections ****************/
+    private void handleConnectionClosed(ArrayList<Connection> connections){
+        if(checkConnectionClosed(connections)){
+            deleteConnectionClosed(connections);
+            try{
+                Thread.sleep(500);
+            }catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    /***************** Code By Leo ********************/
     // Process Activity Broadcast after Received
 
     // Check The server is authenticate or not
@@ -936,7 +968,8 @@ public class Control extends Thread {
     // Otherwise, broadcast the JSON message it have received to all other server
 
     // disconnect return true; keep connection return false
-    private boolean processActivityBroadcast(Connection connect, JSONObject msg) {
+    private boolean processActivityBroadcast(Connection connect, JSONObject msg) throws Exception{
+
         String timeString = (String) msg.get("message_time");
         SimpleDateFormat timeFormat = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
         Date msgTime = timeFormat.parse(timeString);
@@ -945,9 +978,11 @@ public class Control extends Thread {
             sendInvalidMsg(connect, "Unauthenticate Server Connection");
             return true;
         }
-    //More Consideration need to be take.
-    //First Read the msg and obtain the Msg time
-    //Change the String to simple date format.
+        //
+        handleConnectionClosed(getConnections());
+        //More Consideration need to be take.
+        //First Read the msg and obtain the Msg time
+        //Change the String to simple date format.
         for (Connection c : getConnections()) {
             if (c.equals(connect)) {
                 continue;
@@ -957,7 +992,7 @@ public class Control extends Thread {
                 log.info("ACTIVITY_BROADCAST SENT ->" + c.getFullAddr());
             }
             /*****************Project 2 Modification*******************/
-            else if (c.isClient() && ! clientLogTime.get(con).after(msgTime)) {
+            else if (c.isClient() && ! clientLogTime.get(c).after(msgTime)) {
                 c.writeMsg(msg.toJSONString());
                 log.info("ACTIVITY_BROADCAST SENT ->" + c.getFullAddr());
             }
@@ -971,6 +1006,7 @@ public class Control extends Thread {
     // Find all client connections
     // Then send message to all client
     private void activityToClient(ArrayList<Connection> connections, Date curTime, JSONObject msg) {
+        handleConnectionClosed(connections);
         for (Connection con : connections) {
             if (con.isClient() && !clientLogTime.get(con).after(curTime)) {
                 con.writeMsg(msg.toJSONString());
@@ -984,6 +1020,7 @@ public class Control extends Thread {
     // Find all server connections
     // Then send message to all other server
     private void activityToServer(ArrayList<Connection> connections, JSONObject msg) {
+        handleConnectionClosed(connections);
         for (Connection con : connections) {
             if (con.isServer()) {
                 con.writeMsg(msg.toJSONString());
