@@ -94,6 +94,7 @@ public class Connection extends Thread {
 
 			// remove the connection from connections list after broadcasting
 			if (isClient()) {
+				Control.getInstance().removeClientLoginTime(this);
 				Control.getInstance().connectionClosed(this);
 			}
 			
@@ -116,6 +117,7 @@ public class Connection extends Thread {
 
 		} catch (IOException | InterruptedException e) {
 			log.error("connection " + Settings.socketAddress(socket) + " closed with exception: " + e);
+			Control.getInstance().removeClientLoginTime(this);
 			Control.getInstance().connectionClosed(this);
 		}
 		open = false;
