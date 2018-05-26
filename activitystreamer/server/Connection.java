@@ -93,8 +93,9 @@ public class Connection extends Thread {
 			}
 
 			log.debug("connection closed to " + Settings.socketAddress(socket));
-
-                        if (!this.getBackupHost().isEmpty()) {
+                        
+                        if (!this.getBackupHost().isEmpty() && !Control.getInstance().isMaster()) {
+                                log.info("2: " + Control.getInstance().isMaster());
                                 Settings.setRemoteHostname(this.getBackupHost());
                                 Settings.setRemotePort(this.getBackupPort());
                                 Control.getInstance().initiateConnection();
@@ -113,13 +114,6 @@ public class Connection extends Thread {
 				
 				// Stop all register / lock tasks
 				Control.getInstance().stopRegLock();
-				
-				// if this connection is at index 0 of connection list
-				// establish an initialConnection to backup server
-				// else, close it without removing it from this list
-				if (Control.getInstance().getConnections().indexOf(this) == 0) {
-					Control.getInstance().initiateConnection();
-				}
 			}
 			
 			in.close();
@@ -185,7 +179,7 @@ public class Connection extends Thread {
 	}
 
 	public String getRemoteHost() {
-		return getSocket().getInetAddress().toString();
+		return getSocket().getInetAddress().getHostAddress();
 	}
 
 	public int getRemotePort() {
