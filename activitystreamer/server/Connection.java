@@ -30,6 +30,8 @@ public class Connection extends Thread {
 	private boolean serverFlag = false; // Indicate a connection is a valid server (default: false)
 	private boolean clientFlag = false; // Indicate a connection is a valid client (default: false)
 	private boolean closedFlag = false; // Indicate a connection is closed
+        private String backupHost = new String();
+        private int backupPort;
 
 	Connection(Socket socket) throws IOException {
 		in = new DataInputStream(socket.getInputStream());
@@ -92,6 +94,13 @@ public class Connection extends Thread {
 
 			log.debug("connection closed to " + Settings.socketAddress(socket));
 
+                        if (!this.getBackupHost().isEmpty()) {
+                                Settings.setRemoteHostname(this.getBackupHost());
+                                Settings.setRemotePort(this.getBackupPort());
+                                Control.getInstance().initiateConnection();
+                        }
+                        
+                        
 			// remove the connection from connections list after broadcasting
 			if (isClient()) {
 				Control.getInstance().removeClientLoginTime(this);
@@ -182,4 +191,10 @@ public class Connection extends Thread {
 	public int getRemotePort() {
 		return getSocket().getPort();
 	}
+        
+        public void setBackupHost(String h) { backupHost = h; }
+        public String getBackupHost() { return backupHost; }
+        public void setBackupPort(int p) { backupPort = p; }
+        public int getBackupPort() { return backupPort; }
+        
 }
