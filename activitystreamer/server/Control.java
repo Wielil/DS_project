@@ -128,7 +128,13 @@ public class Control extends Thread {
                     sendAuthFail(con, secret);
                     return true;
                 } else {
-                    sendAuthSuccess(con, userInfo);
+                    sendAuthSuccess(con);
+                    for (Connection c : connections) {
+                        if (c.isServer()) {
+                            sendBackUpSer(con, c.getRemoteHost(), c.getRemotePort());
+                            break;
+                    }
+}
                     con.setServer(true);
                     return false;
                 }
@@ -152,6 +158,8 @@ public class Control extends Thread {
                 return processActivityMessage(con, JSONmsg);
             case "ACTIVITY_BROADCAST":
                 return processActivityBroadcast(con, JSONmsg);
+            case "BACK_UP_SER":
+                return processBackUpSer(con, JSONmsg);
             /***********
              * client case
              */
@@ -328,16 +336,24 @@ public class Control extends Thread {
         log.info("AUTHENTICATE SENT -> " + con.getFullAddr());
     }
     
+    // if connect to server, this server will send backup 
+    // server to you after you authenticate success.
     @SuppressWarnings("unchecked")
-    public void sendAuthSuccess(Connection con, HashMap<String, String> userInfo) {
+    public void sendBackUpSer(Connection con, String hostname, int port) {
+	JSONObject backServer = new JSONObject();
+	backServer.put("command", "BACK_UP_SER");
+	backServer.put("hostname", hostname);
+	backServer.put("port", port);
+	con.writeMsg(backServer.toJSONString());
+	log.info("backServer info SENT ->" + con.getFullAddr());
+    }
+    
+    @SuppressWarnings("unchecked")
+    public void sendAuthSuccess(Connection con) {
         JSONObject Authenticate_Success = new JSONObject();
         Authenticate_Success.put("command", "AUTHENTICATION_SUCCESS");
         Authenticate_Success.put("userInfo", userInfo);
         Authenticate_Success.put("flag", true);
-        Connection masterCon = connections.get(0);
-        // sending masterCon information to my child server
-        Authenticate_Success.put("remoteHost", masterCon.getRemoteHost());
-        Authenticate_Success.put("remotePort", masterCon.getRemotePort());
         con.writeMsg(Authenticate_Success.toJSONString());
         log.info("AUTHENTICATE_SUCCESS SENT -> " + con.getFullAddr());
     }
@@ -731,11 +747,19 @@ public class Control extends Thread {
     private boolean processAuthSuccess(Connection con, JSONObject msg) {
         userInfo = (HashMap<String, String>) msg.get("userInfo");
         Settings.setAuthenticate((boolean) msg.get("flag"));
-        // setting backup server
-        Settings.setRemoteHostname((String) msg.get("remoteHost"));
-        Settings.setRemotePort(Integer.parseInt(msg.get("remotePort").toString()));
         return false;
     }
+    
+    private boolean processBackUpSer(Connection con, JSONObject msg) {
+	con.setBackupHost((String) msg.get("hostname"));
+	con.setBackupPort(Integer.parseInt(msg.get("port").toString()));
+	for (Connection c : connections) {
+		if (c.isServer() && !c.equals(con)) {
+			sendBackUpSer(c, con.getRemoteHost(), con.getRemotePort());
+		}
+	}
+	return false;
+}
 
     // Process incoming LOGIN command from client
     // return: close connection (true) / keep connection (false)
