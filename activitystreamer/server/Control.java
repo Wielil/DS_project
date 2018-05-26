@@ -387,7 +387,15 @@ public class Control extends Thread {
         }
 
     }
-
+    
+    /******************* Code by Leo *********************/
+    /****************Project 2 Modification***************/
+    public void removeClientLoginTime(Connection con){
+        if(con.isClient()){
+            log.debug("Removing disconnect Client from loginTime hash map");
+            clientLogTime.remove(con);
+        }
+    }
     // Shaoxi
     // Check if an user name has been selected
     private boolean isUserOnRecord(String user) {
