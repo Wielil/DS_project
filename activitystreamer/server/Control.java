@@ -687,6 +687,9 @@ public class Control extends Thread {
             if (userInfo.get(userLock) != null) {
                 userInfo.remove(userLock);
             }
+            if (lockInfo.get(userLock) != null) {
+                lockInfo.remove(userLock);
+            }
         } finally {
             regWLock.unlock();
         }
@@ -751,6 +754,7 @@ public class Control extends Thread {
     }
     
     private boolean processAuthSuccess(Connection con, JSONObject msg) {
+        log.info("Authenticate Success");
         userInfo = (HashMap<String, String>) msg.get("userInfo");
         Settings.setAuthenticate((boolean) msg.get("flag"));
         return false;
