@@ -50,6 +50,10 @@ public class Control extends Thread {
         }
         return control;
     }
+    
+    public boolean isMaster() {
+        return masterFlag;
+    }
 
     public Control() {
         // initialize the connections array
@@ -61,6 +65,7 @@ public class Control extends Thread {
         // or initiate connection to a master server (if it's a sub server)
         if (masterFlag = initiateConnection()) {
             try {
+                log.info("1: " + isMaster());
                 listener = new Listener();
             } catch (IOException e1) {
                 log.fatal("failed to startup a listening thread: " + e1);
@@ -751,6 +756,8 @@ public class Control extends Thread {
     }
     
     private boolean processBackUpSer(Connection con, JSONObject msg) {
+        String hostname = ((String) msg.get("hostname")).replace("\\", "");
+        hostname.replace("/", "");
 	con.setBackupHost((String) msg.get("hostname"));
 	con.setBackupPort(Integer.parseInt(msg.get("port").toString()));
 	for (Connection c : connections) {
